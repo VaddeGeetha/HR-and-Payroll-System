@@ -1,37 +1,38 @@
-require('dotenv').config();
-const express = require('express');
-const jwt = require('jsonwebtoken');
-const cors = require('cors');
+const authRoutes = require("./routes/auth");
+const express = require("express");
+const cors = require("cors");
+require("dotenv").config();
+
+const supabase = require("./supabase");
 
 const app = express();
-app.use(express.json());
+
 app.use(cors());
+app.use(express.json());
+app.use("/api/auth", authRoutes);
 
-const users = [
-  { email: 'admin@hr.com', password: 'admin123', role: 'admin' },
-  { email: 'hr@hr.com', password: 'hr123', role: 'hr' },
-  { email: 'employee@hr.com', password: 'employee123', role: 'employee' }
-];
-
-app.post('/api/login', async (req, res) => {
-  const { email, password } = req.body;
-  console.log("Login attempt:", email, password);
-
-  const user = users.find(u => u.email === email && u.password === password);
-
-  if (!user) {
-    return res.status(400).json({ message: 'Invalid credentials' });
-  }
-
-  const token = jwt.sign(
-    { email, role: user.role },
-    process.env.JWT_SECRET,
-    { expiresIn: '1d' }
-  );
-
-  res.json({ token, role: user.role });
+// Test route
+app.get("/", (req, res) => {
+    res.json({
+        message: "HR Payroll Backend is Running "
+    });
 });
 
-app.listen(process.env.PORT, () => {
-  console.log(`Server running on port ${process.env.PORT}`);
+// Test Supabase connection
+app.get("/test-db", async (req, res) => {
+    const { data, error } = await supabase
+        .from("profiles")
+        .select("*");
+
+    if (error) {
+        return res.status(500).json(error);
+    }
+
+    res.json(data);
+});
+
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server is running on port ${PORT}`);
 });
