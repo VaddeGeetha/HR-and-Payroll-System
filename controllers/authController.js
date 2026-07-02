@@ -1,4 +1,5 @@
-const supabase = require("../supabase");
+const transporter=require("../utils/mailer")
+const { supabase, supabaseAdmin } = require("../supabase");
 
 const login = async (req, res) => {
     try {
@@ -61,26 +62,114 @@ const login = async (req, res) => {
 const forgotPassword = async (req, res) => {
     try {
         const { email } = req.body;
+        const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("email", email)
+    .single();
 
-        if (!email) {
-            return res.status(400).json({
-                success: false,
-                message: "Email is required"
-            });
+if (profileError || !profile) {
+    return res.status(404).json({
+        success: false,
+        message: "User not found"
+    });
+}
+
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+        const expiry = new Date(Date.now() + 5 * 60 * 1000);
+
+        const { error } = await supabase
+            .from("password_resets")
+    .insert([
+        {
+            user_id: profile.id,
+            email,
+            otp,
+            expiry,
+            used: false
         }
-
-        const { error } = await supabase.auth.resetPasswordForEmail(email);
+    ]);
 
         if (error) {
-            return res.status(400).json({
+            return res.status(500).json({
                 success: false,
                 message: error.message
             });
         }
 
-        return res.json({
+        await transporter.sendMail({
+            from: process.env.EMAIL_USER,
+            to: email,
+            subject: "Password Reset OTP",
+            text: `Your OTP is ${otp}. It is valid for 5 minutes.`
+        });
+
+        res.json({
             success: true,
-            message: "Password reset email sent successfully."
+            message: "OTP sent successfully"
+        });
+
+    } catch (err) {
+        res.status(500).json({
+            success: false,
+            message: err.message
+        });
+    }
+};
+const resetPassword = async (req, res) => {
+    try {
+        const { email, otp, newPassword } = req.body;
+
+        // Find OTP
+        const { data, error } = await supabase
+            .from("password_resets")
+            .select("*")
+            .eq("email", email)
+            .eq("otp", otp)
+            .eq("used", false)
+            .single();
+
+        if (error || !data) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid OTP"
+            });
+        }
+
+        // Check expiry
+       const now = new Date().toISOString();
+
+if (data.expiry <= now) {
+    return res.status(400).json({
+        success: false,
+        message: "OTP has expired"
+    });
+}
+        // Update password in Supabase Auth
+        const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+            data.user_id,
+            {
+                password: newPassword
+            }
+        );
+
+        if (updateError) {
+            return res.status(500).json({
+                success: false,
+                message: updateError.message
+            });
+        }
+
+        // Mark OTP as used
+        await supabase
+            .from("password_resets")
+            .update({ used: true })
+            .eq("id", data.id);
+
+        res.json({
+            success: true,
+            message: "Password reset successful"
         });
 
     } catch (err) {
@@ -91,8 +180,8 @@ const forgotPassword = async (req, res) => {
     }
 };
 
-
 module.exports = {
     login,
-    forgotPassword
+    forgotPassword,
+    resetPassword
 };
