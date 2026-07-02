@@ -1,0 +1,8 @@
+CREATE TABLE password_resets (
+    id BIGSERIAL PRIMARY KEY,
+    email TEXT NOT NULL,
+    otp VARCHAR(6) NOT NULL,
+    expiry TIMESTAMP NOT NULL,
+    used BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
