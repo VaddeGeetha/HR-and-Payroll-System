@@ -1,0 +1,11 @@
+CREATE TABLE employees (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    email TEXT UNIQUE NOT NULL,
+    department TEXT NOT NULL,
+    role TEXT NOT NULL,
+    monthly_salary NUMERIC(10,2) NOT NULL,
+    joining_date DATE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
