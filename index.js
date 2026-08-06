@@ -1,3 +1,4 @@
+const employeeRoutes = require("./routes/employee");
 const authRoutes = require("./routes/auth");
 const express = require("express");
 const cors = require("cors");
@@ -7,9 +8,14 @@ const supabase = require("./supabase");
 
 const app = express();
 
-app.use(cors());
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 app.use("/api/auth", authRoutes);
+app.use("/api/employees",employeeRoutes);
 
 // Test route
 app.get("/", (req, res) => {
