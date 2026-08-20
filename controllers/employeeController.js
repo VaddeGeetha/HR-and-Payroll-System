@@ -196,6 +196,58 @@ const updateEmployee = async (req, res) => {
     });
   }
 };
+const deleteEmployee = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get employee first
+    const { data: employee, error: fetchError } = await supabaseAdmin
+      .from("employees")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (fetchError || !employee) {
+      return res.status(404).json({
+        success: false,
+        message: "Employee not found"
+      });
+    }
+
+    // Delete from employees table
+    const { error: employeeError } = await supabaseAdmin
+      .from("employees")
+      .delete()
+      .eq("id", id);
+
+    if (employeeError) {
+      return res.status(500).json({
+        success: false,
+        message: employeeError.message
+      });
+    }
+
+    // Delete from profiles table
+    await supabaseAdmin
+      .from("profiles")
+      .delete()
+      .eq("id", employee.user_id);
+
+    // Delete from Supabase Auth
+    await supabaseAdmin.auth.admin.deleteUser(employee.user_id);
+
+    res.json({
+      success: true,
+      message: "Employee deleted successfully"
+    });
+
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
+  }
+};
 
 
 
@@ -203,4 +255,5 @@ module.exports = {
   getEmployees,
   addEmployee,
   updateEmployee,
+  deleteEmployee,
 };
