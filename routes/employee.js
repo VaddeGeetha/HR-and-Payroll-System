@@ -4,7 +4,8 @@ const authorize = require("../middleware/authorize");
 
 const { getEmployees ,
         addEmployee,
-        updateEmployee
+        updateEmployee,
+        deleteEmployee
 } = require("../controllers/employeeController");
 
 router.get("/", authorize("admin", "hr"), getEmployees);
@@ -12,5 +13,6 @@ router.get("/", authorize("admin", "hr"), getEmployees);
 router.post("/", authorize("admin", "hr"), addEmployee);
 
 router.put("/:id", authorize("admin", "hr"), updateEmployee);
+router.delete("/:id",deleteEmployee);
 
 module.exports = router;
