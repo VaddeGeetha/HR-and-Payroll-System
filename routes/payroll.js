@@ -14,13 +14,13 @@ const authorize = require("../middleware/authorize");
 // HR → see all payroll
 router.get("/", authorize("hr"), getPayroll);
 
-// Employee → see only their own payroll
-router.get("/my", authorize("employee"), getMyPayroll);
+// Employee → see their payslips
+router.get("/my-payslips", authorize("employee"), getMyPayroll);
 
-// HR → run payroll
+// HR → run company payroll
 router.post("/run", authorize("hr"), runPayroll);
 
-// Payslip download
+// Download payslip
 router.get("/:id/download", downloadPayslip);
 
 module.exports = router;
