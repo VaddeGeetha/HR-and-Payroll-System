@@ -13,6 +13,8 @@ router.get("/", authorize("admin", "hr"), getEmployees);
 router.post("/", authorize("admin", "hr"), addEmployee);
 
 router.put("/:id", authorize("admin", "hr"), updateEmployee);
-router.delete("/:id",deleteEmployee);
+router.delete("/:id",
+    authorize("admin","hr"),
+    deleteEmployee);
 
 module.exports = router;
