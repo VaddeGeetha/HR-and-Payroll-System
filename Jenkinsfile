@@ -6,9 +6,9 @@ pipeline {
     }
 
     environment {
-    SUPABASE_URL = credentials('SUPABASE_URL')
-    SUPABASE_ANON_KEY = credentials('SUPABASE_ANON_KEY')
-    SUPABASE_SERVICE_ROLE_KEY = credentials('SUPABASE_SERVICE_ROLE_KEY')
+        SUPABASE_URL = credentials('SUPABASE_URL')
+        SUPABASE_ANON_KEY = credentials('SUPABASE_ANON_KEY')
+        SUPABASE_SERVICE_ROLE_KEY = credentials('SUPABASE_SERVICE_ROLE_KEY')
     }
 
     stages {
@@ -20,28 +20,24 @@ pipeline {
 
         stage('Backend Build') {
             steps {
-                dir('backend') {
-                    sh 'npm install'
-                }
+                sh 'npm install'
             }
         }
 
         stage('Run Tests') {
-            steps {
-                dir('backend') {
-                    sh 'npm test || echo "No tests yet"'
-                }
-            }
-        }
+    steps {
+        sh 'npm test'
+    }
+}
 
         stage('Deploy') {
             steps {
-            sh 'docker build -t hr-payroll .'
-            sh 'docker stop hr-payroll || true'
-            sh 'docker rm hr-payroll || true'
-            sh 'docker run -d --name hr-payroll -p 5000:5000 -e SUPABASE_URL="$SUPABASE_URL" -e SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" -e SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY" hr-payroll'
+                sh 'docker build -t hr-payroll .'
+                sh 'docker stop hr-payroll || true'
+                sh 'docker rm hr-payroll || true'
+                sh 'docker run -d --name hr-payroll -p 5000:5000 -e SUPABASE_URL="$SUPABASE_URL" -e SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" -e SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY" hr-payroll'
+            }
         }
-}
     }
 
     post {
