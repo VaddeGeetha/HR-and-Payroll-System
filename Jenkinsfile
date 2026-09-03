@@ -31,13 +31,36 @@ pipeline {
 }
 
         stage('Deploy') {
-            steps {
-                sh 'docker buildx build --load -t hr-payroll .'
-                sh 'docker stop hr-payroll || true'
-                sh 'docker rm hr-payroll || true'
-                sh 'docker run -d --name hr-payroll -p 5000:5000 -e SUPABASE_URL="$SUPABASE_URL" -e SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" -e SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY" hr-payroll'
-            }
+    steps {
+        sh 'docker buildx build --load -t hr-payroll .'
+
+        withCredentials([usernamePassword(
+            credentialsId: 'dockerhub-credentials',
+            usernameVariable: 'DOCKER_USERNAME',
+            passwordVariable: 'DOCKER_PASSWORD'
+        )]) {
+            sh '''
+                echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+                docker tag hr-payroll:latest geethavadde/hr-payroll:latest
+                docker push geethavadde/hr-payroll:latest
+                docker logout
+            '''
         }
+
+        sh 'docker stop hr-payroll || true'
+        sh 'docker rm hr-payroll || true'
+
+        sh '''
+            docker run -d \
+            --name hr-payroll \
+            -p 5000:5000 \
+            -e SUPABASE_URL="$SUPABASE_URL" \
+            -e SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
+            -e SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY" \
+            hr-payroll
+        '''
+    }
+}
     }
 
     post {
