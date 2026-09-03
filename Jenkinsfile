@@ -59,6 +59,8 @@ pipeline {
             -e SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY" \
             hr-payroll
         '''
+        sh 'sleep 5'
+        sh 'curl -f http://localhost:5000/ || exit 1'
     }
 }
     }
