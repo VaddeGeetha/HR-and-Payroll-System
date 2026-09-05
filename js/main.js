@@ -1,5 +1,5 @@
 // ============================================================
-// ===== MAIN.JS - EVENT LISTENERS & INITIALIZATION =====
+// ===== MAIN.JS - Event Listeners =====
 // ============================================================
 
 console.log('🚀 HR Connect - Starting...');
@@ -146,12 +146,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     console.log('✅ All event listeners attached successfully!');
     console.log('📡 API URL:', CONFIG.API_URL);
-    console.log('📝 Mock Mode:', useMockData ? 'ON' : 'OFF');
+    console.log('📝 Mock Mode:', window.useMockData ? 'ON' : 'OFF');
 });
-
-// ============================================================
-// ===== HANDLE UNCAUGHT ERRORS =====
-// ============================================================
 
 window.addEventListener('error', function(e) {
     console.error('❌ Uncaught error:', e.message);

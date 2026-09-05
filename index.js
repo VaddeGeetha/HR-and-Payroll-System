@@ -9,7 +9,7 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 
-const supabase = require("./supabase");
+const { supabase, supabaseAdmin } = require("./supabase");
 
 const app = express();
 app.use(cors({
@@ -37,8 +37,8 @@ app.get("/", (req, res) => {
 
 // Test Supabase connection
 app.get("/test-db", async (req, res) => {
-    const { data, error } = await supabase
-        .from("profiles")
+    const { data, error } = await supabaseAdmin
+        .from("employees")
         .select("*");
 
     if (error) {

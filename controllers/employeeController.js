@@ -11,7 +11,7 @@ const getEmployees = async (req, res) => {
     let query = supabaseAdmin
       .from("employees")
       .select("*")
-      .order("created_at", { ascending: false });
+      .order("id", { ascending: false });
 
     if (search) {
       query = query.or(
@@ -30,7 +30,7 @@ const getEmployees = async (req, res) => {
 
     res.json({
       success: true,
-      employees: data || []
+      employees: data || [],
     });
 
   } catch (err) {
@@ -41,216 +41,129 @@ const getEmployees = async (req, res) => {
   }
 };
 
-
-// ============================================
-// ADD EMPLOYEE
-// POST /api/employees
-// ============================================
 const addEmployee = async (req, res) => {
-  try {
-    const {
-      name,
-      email,
-      phone,
-      gender,
-      dob,
-      joining_date,
-      department,
-      designation,
-      employment_type,
-      annual_ctc,
-      monthly_salary,
-      pan,
-      aadhaar,
-      passport,
-      address,
-      bank_name,
-      account_number,
-      ifsc,
-      photo,
-      status
-    } = req.body;
-
-    // ----------------------------------------
-    // REQUIRED FIELDS
-    // ----------------------------------------
-    if (
-      !name ||
-      !email ||
-      !phone ||
-      !pan ||
-      !aadhaar ||
-      !photo
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "name, email, phone, pan, aadhaar and photo are required"
-      });
-    }
-
-    // ----------------------------------------
-    // PAN VALIDATION
-    // Example: ABCDE1234F
-    // ----------------------------------------
-    const panValue = pan.toUpperCase();
-
-    if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(panValue)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid PAN format"
-      });
-    }
-
-    // ----------------------------------------
-    // AADHAAR VALIDATION
-    // Allows spaces: 1234 5678 9012
-    // ----------------------------------------
-    const aadhaarValue = aadhaar.replace(/\s/g, "");
-
-    if (!/^\d{12}$/.test(aadhaarValue)) {
-      return res.status(400).json({
-        success: false,
-        message: "Aadhaar must contain 12 digits"
-      });
-    }
-
-    // ----------------------------------------
-    // CHECK EXISTING EMPLOYEE
-    // ----------------------------------------
-    const { data: existingEmployee } = await supabaseAdmin
-      .from("employees")
-      .select("id")
-      .eq("email", email)
-      .maybeSingle();
-
-    if (existingEmployee) {
-      return res.status(400).json({
-        success: false,
-        message: "Employee already exists"
-      });
-    }
-
-    // ----------------------------------------
-    // CREATE SUPABASE AUTH USER
-    // ----------------------------------------
-    const { data: authData, error: authError } =
-      await supabaseAdmin.auth.admin.createUser({
-        email,
-        password: "employee123",
-        email_confirm: true
-      });
-
-    if (authError || !authData?.user) {
-      return res.status(500).json({
-        success: false,
-        message:
-          authError?.message || "User creation failed"
-      });
-    }
-
-    const userId = authData.user.id;
-
-    // ----------------------------------------
-    // CREATE PROFILE
-    // ----------------------------------------
-    const { error: profileError } = await supabaseAdmin
-      .from("profiles")
-      .insert([
-        {
-          id: userId,
-          full_name: name,
-          email,
-          role: "employee"
-        }
-      ]);
-
-    if (profileError) {
-
-      // Roll back Auth user if profile fails
-      await supabaseAdmin.auth.admin.deleteUser(userId);
-
-      return res.status(500).json({
-        success: false,
-        message: profileError.message
-      });
-    }
-
-    // ----------------------------------------
-    // CREATE EMPLOYEE RECORD
-    // ----------------------------------------
-    const { data: employee, error: employeeError } =
-      await supabaseAdmin
-        .from("employees")
-        .insert([
-          {
-            user_id: userId,
+    try {
+        const {
             name,
             email,
+            department,
+            role = "employee",
+            monthly_salary = 50000,
+            joining_date,
             phone,
             gender,
             dob,
-            joining_date,
-            department,
             designation,
             employment_type,
             annual_ctc,
-            monthly_salary,
-            pan: panValue,
-            aadhaar: aadhaarValue,
+            pan,
+            aadhaar,
             passport,
-            address,
-            bank_name,
-            account_number,
-            ifsc,
             photo,
-            status: status || "active",
-            role: "employee"
-          }
-        ])
-        .select()
-        .single();
+            status = "active",
+            bank_details
+        } = req.body;
 
-    if (employeeError) {
+        const bank_name = req.body.bank_name || bank_details?.bank_name || null;
+        const account_number = req.body.account_number || bank_details?.account_number || null;
 
-      // Roll back profile + auth user
-      await supabaseAdmin
-        .from("profiles")
-        .delete()
-        .eq("id", userId);
+        // Check if employee already exists
+        const { data: existing } = await supabaseAdmin
+            .from("profiles")
+            .select("id")
+            .eq("email", email)
+            .maybeSingle();
 
-      await supabaseAdmin.auth.admin.deleteUser(userId);
+        if (existing) {
+            return res.status(400).json({
+                success: false,
+                message: "Employee already exists"
+            });
+        }
 
-      return res.status(500).json({
-        success: false,
-        message: employeeError.message
-      });
+        // Create user in Supabase Auth
+        const { data: authData, error: authError } =
+            await supabaseAdmin.auth.admin.createUser({
+                email,
+                password: "employee123",
+                email_confirm: true
+            });
+
+        if (authError || !authData?.user) {
+            return res.status(500).json({
+                success: false,
+                message: authError?.message || "User creation failed"
+            });
+        }
+
+        const { error: profileError } = await supabaseAdmin
+            .from("profiles")
+            .insert([
+                {
+                    id: authData.user.id,
+                    full_name: name,
+                    email,
+                    role
+                }
+            ]);
+
+        if (profileError) {
+            return res.status(500).json({
+                success: false,
+                message: profileError.message
+            });
+        }
+
+        const { data: employee, error: employeeError } = await supabaseAdmin
+            .from("employees")
+            .insert([
+                {
+                    user_id: authData.user.id,
+                    name,
+                    email,
+                    department,
+                    role,
+                    monthly_salary,
+                    joining_date: joining_date || new Date().toISOString().split('T')[0],
+                    phone: phone || null,
+                    gender: gender || null,
+                    dob: dob || null,
+                    designation: designation || null,
+                    employment_type: employment_type || null,
+                    annual_ctc: annual_ctc || null,
+                    pan: pan || null,
+                    aadhaar: aadhaar || null,
+                    passport: passport || null,
+                    photo: photo || null,
+                    status: status || "active",
+                    bank_name,
+                    account_number
+                }
+            ])
+            .select()
+            .single();
+
+        if (employeeError) {
+            return res.status(500).json({
+                success: false,
+                message: employeeError.message
+            });
+        }
+
+        res.json({
+            success: true,
+            message: "Employee created successfully",
+            employee
+        });
+
+    } catch (err) {
+        res.status(500).json({
+            success: false,
+            message: err.message
+        });
     }
-
-    // ----------------------------------------
-    // RESPONSE
-    // ----------------------------------------
-    res.status(201).json({
-      success: true,
-      data: employee,
-      message: "Employee created successfully"
-    });
-
-  } catch (err) {
-    console.error("Add Employee Error:", err);
-
-    res.status(500).json({
-      success: false,
-      message: err.message
-    });
-  }
 };
 
-
-// ============================================
-// UPDATE EMPLOYEE
-// PUT /api/employees/:id
-// ============================================
 const updateEmployee = async (req, res) => {
   try {
     const { id } = req.params;
@@ -267,106 +180,52 @@ const updateEmployee = async (req, res) => {
       employment_type,
       annual_ctc,
       monthly_salary,
-      pan,
-      aadhaar,
-      passport,
-      address,
-      bank_name,
-      account_number,
-      ifsc,
-      photo,
-      status
-    } = req.body;
-
-    // ----------------------------------------
-    // FIND EMPLOYEE
-    // ----------------------------------------
-    const { data: existingEmployee, error: findError } =
-      await supabaseAdmin
-        .from("employees")
-        .select("*")
-        .eq("id", id)
-        .single();
-
-    if (findError || !existingEmployee) {
-      return res.status(404).json({
-        success: false,
-        message: "Employee not found"
-      });
-    }
-
-    // ----------------------------------------
-    // VALIDATE PAN IF PROVIDED
-    // ----------------------------------------
-    let panValue = pan;
-
-    if (pan) {
-      panValue = pan.toUpperCase();
-
-      if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(panValue)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid PAN format"
-        });
-      }
-    }
-
-    // ----------------------------------------
-    // VALIDATE AADHAAR IF PROVIDED
-    // ----------------------------------------
-    let aadhaarValue = aadhaar;
-
-    if (aadhaar) {
-      aadhaarValue = aadhaar.replace(/\s/g, "");
-
-      if (!/^\d{12}$/.test(aadhaarValue)) {
-        return res.status(400).json({
-          success: false,
-          message: "Aadhaar must contain 12 digits"
-        });
-      }
-    }
-
-    // ----------------------------------------
-    // UPDATE EMPLOYEE
-    // ----------------------------------------
-    const updateData = {
-      name,
-      email,
+      joining_date,
       phone,
       gender,
       dob,
-      joining_date,
-      department,
       designation,
       employment_type,
       annual_ctc,
-      monthly_salary,
-      pan: panValue,
-      aadhaar: aadhaarValue,
+      pan,
+      aadhaar,
       passport,
-      address,
-      bank_name,
-      account_number,
-      ifsc,
       photo,
-      status
-    };
+      status,
+      bank_details
+    } = req.body;
 
-    // Remove undefined values
-    Object.keys(updateData).forEach(key => {
-      if (updateData[key] === undefined) {
-        delete updateData[key];
-      }
-    });
+    const bank_name = req.body.bank_name || bank_details?.bank_name;
+    const account_number = req.body.account_number || bank_details?.account_number;
 
-    const { data: employee, error: employeeError } =
-      await supabaseAdmin
-        .from("employees")
-        .update(updateData)
-        .eq("id", id)
-        .select()
-        .single();
+    const updatePayload = {};
+    if (name !== undefined) updatePayload.name = name;
+    if (email !== undefined) updatePayload.email = email;
+    if (department !== undefined) updatePayload.department = department;
+    if (role !== undefined) updatePayload.role = role;
+    if (monthly_salary !== undefined) updatePayload.monthly_salary = monthly_salary;
+    if (joining_date !== undefined) updatePayload.joining_date = joining_date;
+    if (phone !== undefined) updatePayload.phone = phone;
+    if (gender !== undefined) updatePayload.gender = gender;
+    if (dob !== undefined) updatePayload.dob = dob;
+    if (designation !== undefined) updatePayload.designation = designation;
+    if (employment_type !== undefined) updatePayload.employment_type = employment_type;
+    if (annual_ctc !== undefined) updatePayload.annual_ctc = annual_ctc;
+    if (pan !== undefined) updatePayload.pan = pan;
+    if (aadhaar !== undefined) updatePayload.aadhaar = aadhaar;
+    if (passport !== undefined) updatePayload.passport = passport;
+    if (photo !== undefined) updatePayload.photo = photo;
+    if (status !== undefined) updatePayload.status = status;
+    if (bank_name !== undefined) updatePayload.bank_name = bank_name;
+    if (account_number !== undefined) updatePayload.account_number = account_number;
+
+    // Update employees table
+    const { data: employee, error: employeeError } = await supabaseAdmin
+      .from("employees")
+      .update(updatePayload)
+      .eq("id", id)
+      .select()
+      .single();
 
     if (employeeError) {
       return res.status(500).json({
@@ -375,90 +234,19 @@ const updateEmployee = async (req, res) => {
       });
     }
 
-    // ----------------------------------------
-    // UPDATE PROFILE
-    // ----------------------------------------
-    const profileUpdate = {};
+    // Update profiles table if profile exists
+    if (employee?.user_id) {
+      const profileUpdates = {};
+      if (name !== undefined) profileUpdates.full_name = name;
+      if (email !== undefined) profileUpdates.email = email;
+      if (role !== undefined) profileUpdates.role = role;
 
-    if (name !== undefined) {
-      profileUpdate.full_name = name;
-    }
-
-    if (email !== undefined) {
-      profileUpdate.email = email;
-    }
-
-    if (Object.keys(profileUpdate).length > 0) {
-      const { error: profileError } =
+      if (Object.keys(profileUpdates).length > 0) {
         await supabaseAdmin
           .from("profiles")
-          .update(profileUpdate)
-          .eq("id", existingEmployee.user_id);
-
-      if (profileError) {
-        return res.status(500).json({
-          success: false,
-          message: profileError.message
-        });
+          .update(profileUpdates)
+          .eq("id", employee.user_id);
       }
-    }
-
-    res.json({
-      success: true,
-      data: employee,
-      message: "Employee updated successfully"
-    });
-
-  } catch (err) {
-    console.error("Update Employee Error:", err);
-
-    res.status(500).json({
-      success: false,
-      message: err.message
-    });
-  }
-};
-
-
-// ============================================
-// DELETE / DEACTIVATE EMPLOYEE
-// DELETE /api/employees/:id
-// ============================================
-const deleteEmployee = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    // Find employee
-    const { data: employee, error: findError } =
-      await supabaseAdmin
-        .from("employees")
-        .select("*")
-        .eq("id", id)
-        .single();
-
-    if (findError || !employee) {
-      return res.status(404).json({
-        success: false,
-        message: "Employee not found"
-      });
-    }
-
-    // ----------------------------------------
-    // FRONTEND SAYS DELETE / DEACTIVATE
-    // We deactivate instead of permanently deleting.
-    // ----------------------------------------
-    const { error } = await supabaseAdmin
-      .from("employees")
-      .update({
-        status: "inactive"
-      })
-      .eq("id", id);
-
-    if (error) {
-      return res.status(500).json({
-        success: false,
-        message: error.message
-      });
     }
 
     res.json({
@@ -476,10 +264,66 @@ const deleteEmployee = async (req, res) => {
   }
 };
 
+const deleteEmployee = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const { data: employee, error: findError } = await supabaseAdmin
+      .from("employees")
+      .select("user_id")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (findError || !employee) {
+      return res.status(404).json({
+        success: false,
+        message: "Employee not found",
+      });
+    }
+
+    // Delete from employees table
+    const { error: empDeleteError } = await supabaseAdmin
+      .from("employees")
+      .delete()
+      .eq("id", id);
+
+    if (empDeleteError) {
+      return res.status(500).json({
+        success: false,
+        message: empDeleteError.message,
+      });
+    }
+
+    // Delete profile
+    if (employee.user_id) {
+      await supabaseAdmin
+        .from("profiles")
+        .delete()
+        .eq("id", employee.user_id);
+
+      // Delete auth user if admin client available
+      try {
+        await supabaseAdmin.auth.admin.deleteUser(employee.user_id);
+      } catch (authErr) {
+        console.warn("Auth user delete warning:", authErr.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: "Employee deleted successfully",
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
 
 module.exports = {
   getEmployees,
   addEmployee,
   updateEmployee,
-  deleteEmployee
+  deleteEmployee,
 };
