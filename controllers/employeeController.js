@@ -1,5 +1,9 @@
-const { supabase, supabaseAdmin} = require("../supabase");
+const { supabase, supabaseAdmin } = require("../supabase");
 
+// ============================================
+// GET ALL EMPLOYEES
+// GET /api/employees
+// ============================================
 const getEmployees = async (req, res) => {
   try {
     const search = req.query.search || "";
@@ -10,7 +14,9 @@ const getEmployees = async (req, res) => {
       .order("id", { ascending: false });
 
     if (search) {
-      query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%`);
+      query = query.or(
+        `name.ilike.%${search}%,email.ilike.%${search}%`
+      );
     }
 
     const { data, error } = await query;
@@ -18,7 +24,7 @@ const getEmployees = async (req, res) => {
     if (error) {
       return res.status(500).json({
         success: false,
-        message: error.message,
+        message: error.message
       });
     }
 
@@ -26,10 +32,11 @@ const getEmployees = async (req, res) => {
       success: true,
       employees: data || [],
     });
+
   } catch (err) {
     res.status(500).json({
       success: false,
-      message: err.message,
+      message: err.message
     });
   }
 };
@@ -164,8 +171,14 @@ const updateEmployee = async (req, res) => {
     const {
       name,
       email,
+      phone,
+      gender,
+      dob,
+      joining_date,
       department,
-      role,
+      designation,
+      employment_type,
+      annual_ctc,
       monthly_salary,
       joining_date,
       phone,
@@ -217,7 +230,7 @@ const updateEmployee = async (req, res) => {
     if (employeeError) {
       return res.status(500).json({
         success: false,
-        message: employeeError.message,
+        message: employeeError.message
       });
     }
 
@@ -238,13 +251,15 @@ const updateEmployee = async (req, res) => {
 
     res.json({
       success: true,
-      message: "Employee updated successfully",
-      employee,
+      message: "Employee deactivated successfully"
     });
+
   } catch (err) {
+    console.error("Delete Employee Error:", err);
+
     res.status(500).json({
       success: false,
-      message: err.message,
+      message: err.message
     });
   }
 };

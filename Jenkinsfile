@@ -2,7 +2,13 @@ pipeline {
     agent any
 
     tools {
-        nodejs 'NodeJS-18'
+        nodejs 'NodeJS-22'
+    }
+
+    environment {
+        SUPABASE_URL = credentials('SUPABASE_URL')
+        SUPABASE_ANON_KEY = credentials('SUPABASE_ANON_KEY')
+        SUPABASE_SERVICE_ROLE_KEY = credentials('SUPABASE_SERVICE_ROLE_KEY')
     }
 
     stages {
@@ -14,25 +20,49 @@ pipeline {
 
         stage('Backend Build') {
             steps {
-                dir('backend') {
-                    sh 'npm install'
-                }
+                sh 'npm install'
             }
         }
 
         stage('Run Tests') {
-            steps {
-                dir('backend') {
-                    sh 'npm test || echo "No tests yet"'
-                }
-            }
-        }
+    steps {
+        sh 'npm test'
+    }
+}
 
         stage('Deploy') {
-            steps {
-                echo 'Deployment will be added later'
-            }
+    steps {
+        sh 'docker buildx build --load -t hr-payroll .'
+
+        withCredentials([usernamePassword(
+            credentialsId: 'dockerhub-credentials',
+            usernameVariable: 'DOCKER_USERNAME',
+            passwordVariable: 'DOCKER_PASSWORD'
+        )]) {
+            sh '''
+                echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+                docker tag hr-payroll:latest geethavadde/hr-payroll:latest
+                docker push geethavadde/hr-payroll:latest
+                docker logout
+            '''
         }
+
+        sh 'docker stop hr-payroll || true'
+        sh 'docker rm hr-payroll || true'
+
+        sh '''
+            docker run -d \
+            --name hr-payroll \
+            -p 5000:5000 \
+            -e SUPABASE_URL="$SUPABASE_URL" \
+            -e SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
+            -e SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY" \
+            hr-payroll
+        '''
+        sh 'sleep 5'
+        sh 'curl -f http://localhost:5000/ || exit 1'
+    }
+}
     }
 
     post {
