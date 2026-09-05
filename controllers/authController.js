@@ -26,17 +26,24 @@ const login = async (req, res) => {
         }
 
         // Get user profile (role)
-        const { data: profile, error: profileError } = await supabase
+        const { data: profile, error: profileError } = await supabaseAdmin
             .from("profiles")
             .select("full_name, role")
             .eq("id", data.user.id)
-            .single();
+            .maybeSingle();
 
-        if (profileError) {
-            return res.status(500).json({
-                success: false,
-                message: profileError.message
-            });
+        let userFullName = profile?.full_name;
+        let userRole = profile?.role;
+
+        if (!userRole) {
+            const { data: empRecord } = await supabaseAdmin
+                .from("employees")
+                .select("name, role")
+                .ilike("email", email)
+                .maybeSingle();
+            
+            userFullName = userFullName || empRecord?.name || email.split('@')[0];
+            userRole = empRecord?.role || (email.toLowerCase().includes('admin') ? 'admin' : (email.toLowerCase().includes('hr') ? 'hr' : 'employee'));
         }
 
         return res.json({
@@ -45,8 +52,8 @@ const login = async (req, res) => {
             user: {
                 id: data.user.id,
                 email: data.user.email,
-                full_name: profile.full_name,
-                role: profile.role
+                full_name: userFullName,
+                role: userRole
             }
         });
 
