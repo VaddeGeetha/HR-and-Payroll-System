@@ -1,0 +1,21 @@
+create table public.payroll (
+  id bigint generated always as identity not null,
+  employee_id bigint not null,
+  month date not null,
+  basic_salary numeric(12, 2) not null default 0,
+  allowances numeric(12, 2) not null default 0,
+  deductions numeric(12, 2) not null default 0,
+  net_salary numeric(12, 2) not null default 0,
+  status text not null default 'processed'::text,
+  created_at timestamp with time zone null default now(),
+  hra numeric not null default 0,
+  special_allowance numeric not null default 0,
+  conveyance_allowance numeric not null default 0,
+  medical_allowance numeric not null default 0,
+  pf numeric not null default 0,
+  professional_tax numeric not null default 0,
+  tds numeric not null default 0,
+  health_insurance numeric not null default 0,
+  constraint payroll_pkey primary key (id),
+  constraint payroll_employee_id_fkey foreign KEY (employee_id) references employees (id) on delete CASCADE
+) TABLESPACE pg_default;
