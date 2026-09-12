@@ -3,7 +3,7 @@
 // ============================================================
 
 const CONFIG = {
-    API_URL: (typeof localStorage !== 'undefined' && localStorage.getItem('hr_custom_api_url')) || 'https://despite-trodden-cyclist.ngrok-free.dev/', // Backend Express REST API
+    API_URL: 'https://hr-and-payroll-9fz9.onrender.com/api', // Backend Express REST API
     USE_MOCK_DATA: false,                 // Disabled: Connect directly to Backend API & Database
 };
 window.CONFIG = CONFIG;
