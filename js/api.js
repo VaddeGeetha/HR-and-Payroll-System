@@ -44,7 +44,7 @@ class ApiService {
         
         const headers = {
             'Content-Type': 'application/json',
-            'ngrok-skip-browser-warning': 'true',
+            
             ...(this.token && { 'Authorization': `Bearer ${this.token}` })
         };
 
