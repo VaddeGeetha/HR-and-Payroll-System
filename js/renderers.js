@@ -962,6 +962,7 @@ function editEmployee(id) {
 
 async function saveEmployee(event) {
     event.preventDefault();
+    
     const id = document.getElementById('editEmployeeId').value;
     const name = document.getElementById('empName').value.trim();
     const email = document.getElementById('empEmail').value.trim();
@@ -972,8 +973,6 @@ async function saveEmployee(event) {
     const dept = document.getElementById('empDepartment').value;
     const desig = document.getElementById('empDesignation').value;
     const empType = document.getElementById('empEmploymentType').value;
-    let annualCtc = document.getElementById('empAnnualCtc').value.trim();
-    if (!annualCtc.toLowerCase().includes('lpa')) annualCtc += ' LPA';
     const pan = document.getElementById('empPan').value.trim().toUpperCase();
     const aadhaar = document.getElementById('empAadhaar').value.trim();
     const passport = document.getElementById('empPassport').value.trim();
@@ -982,7 +981,23 @@ async function saveEmployee(event) {
     const bankAccount = document.getElementById('empBankAccount').value.trim();
     const photo = document.getElementById('modalEmpPhotoPreview').src;
 
-    // Inline Real-Time Field Validations
+    // ============================================================
+    // ✅ STEP 1: PARSE ANNUAL CTC (LPA → Numeric)
+    // ============================================================
+    const annualCtcInput = document.getElementById('empAnnualCtc').value.trim();
+    const ctcNumber = parseFloat(annualCtcInput.replace(/[^\d.]/g, ''));
+    
+    if (isNaN(ctcNumber) || ctcNumber <= 0) {
+        window.showToast('Validation Error', 'Please enter a valid Annual CTC (e.g., 9 for 9 LPA).', 'error');
+        return;
+    }
+    
+    // Convert LPA to numeric rupees: 9 → 900000
+    const annualCtcNumeric = Math.round(ctcNumber * 100000);
+
+    // ============================================================
+    // ✅ STEP 2: VALIDATE ALL FIELDS
+    // ============================================================
     const isNameValid = validateNameInput(document.getElementById('empName'));
     const isEmailValid = validateEmailInput(document.getElementById('empEmail'));
     const isPhoneValid = validatePhoneInput(document.getElementById('empPhone'));
@@ -996,9 +1011,11 @@ async function saveEmployee(event) {
         return;
     }
 
+    // ============================================================
+    // ✅ STEP 3: CALCULATE MONTHLY SALARY
+    // ============================================================
     const phone = '+91 ' + rawPhone;
-    const ctcNumber = parseFloat(annualCtc.replace(/[^\d.]/g, '') || '9');
-    const monthlySalary = parseInt(document.getElementById('empSalary')?.value) || Math.round((ctcNumber * 100000) / 12);
+    const monthlySalary = parseInt(document.getElementById('empSalary')?.value) || Math.round(annualCtcNumeric / 12);
 
     if (isNaN(monthlySalary) || monthlySalary <= 0) {
         window.showToast('Validation Error', 'Please enter a valid monthly salary.', 'error');
@@ -1006,6 +1023,22 @@ async function saveEmployee(event) {
         return;
     }
 
+    // ============================================================
+    // ✅ STEP 4: CHECK FOR DUPLICATE EMAIL (Prevents duplicate creation)
+    // ============================================================
+    const existingEmployees = window._currentEmployees || [];
+    const duplicate = existingEmployees.find(e => 
+        e.email && e.email.toLowerCase() === email.toLowerCase() && String(e.id) !== String(id)
+    );
+
+    if (!id && duplicate) {
+        window.showToast('Error', `An employee with email "${email}" already exists.`, 'error');
+        return;
+    }
+
+    // ============================================================
+    // ✅ STEP 5: BUILD PAYLOAD (with numeric annual_ctc)
+    // ============================================================
     const payload = {
         name,
         email,
@@ -1017,62 +1050,84 @@ async function saveEmployee(event) {
         designation: desig,
         role: 'employee',
         employment_type: empType,
-        annual_ctc: annualCtc,
+        annual_ctc: annualCtcNumeric,  // ✅ NUMERIC VALUE, not "9 LPA"
         monthly_salary: monthlySalary,
         pan,
         aadhaar,
         passport,
         address,
         photo,
-        bank_details: { bank_name: bankName, account_number: bankAccount }
+        bank_details: { 
+            bank_name: bankName, 
+            account_number: bankAccount 
+        }
     };
 
-    // 1. Real Backend API Integration
-    if (!window.useMockData && window.api) {
-        try {
+    // ============================================================
+    // ✅ STEP 6: PREVENT DOUBLE-CLICK
+    // ============================================================
+    const submitBtn = event.target.querySelector('button[type="submit"]');
+    const originalBtnHTML = submitBtn ? submitBtn.innerHTML : '';
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+    }
+
+    try {
+        // 1. Real Backend API Integration
+        if (!window.useMockData && window.api) {
             window.showToast('Info', id ? 'Updating employee in database...' : 'Creating employee in database...', 'info');
+            
             if (id) {
                 await window.api.updateEmployee(id, payload);
                 window.showToast('Success', 'Employee record updated in database!', 'success');
             } else {
                 await window.api.addEmployee(payload);
-                window.showToast('Success', `Employee ${name} added to database!`, 'success');
+                window.showToast('Success', `Employee ${name} added! CTC: ₹${annualCtcNumeric.toLocaleString('en-IN')}`, 'success');
             }
+            
             document.getElementById('addEmployeeModal').style.display = 'none';
             if (currentUser?.email) {
                 await renderApp(currentUser.email);
             }
             return;
-        } catch (error) {
-            console.error('❌ Failed to save employee via API:', error);
-            window.showToast('Error', error.message || 'Failed to save employee to database.', 'error');
-            return;
+        }
+
+        // 2. Offline / Local Fallback
+        const employees = window._currentEmployees || [];
+        if (id) {
+            const emp = employees.find(e => String(e.id) === String(id));
+            if (emp) {
+                Object.assign(emp, payload);
+                window.showToast('Success', 'Employee profile updated successfully!', 'success');
+            }
+        } else {
+            const newEmp = {
+                id: (employees.length > 0 ? Math.max(...employees.map(e => Number(e.id) || 0)) : 0) + 1,
+                ...payload,
+                status: 'active',
+                leave_balance: 14,
+                leaves_taken: 0
+            };
+            employees.push(newEmp);
+            window.showToast('Success', `New employee ${name} added!`, 'success');
+        }
+
+        window.saveEmployeesData(employees);
+        document.getElementById('addEmployeeModal').style.display = 'none';
+        refreshCurrentSection();
+        
+    } catch (error) {
+        console.error('❌ Failed to save employee:', error);
+        window.showToast('Error', error.message || 'Failed to save employee to database.', 'error');
+        
+    } finally {
+        // ✅ Re-enable submit button
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnHTML;
         }
     }
-
-    // 2. Offline / Local Fallback
-    const employees = window._currentEmployees || [];
-    if (id) {
-        const emp = employees.find(e => String(e.id) === String(id));
-        if (emp) {
-            Object.assign(emp, payload);
-            window.showToast('Success', 'Employee profile updated successfully!', 'success');
-        }
-    } else {
-        const newEmp = {
-            id: (employees.length > 0 ? Math.max(...employees.map(e => Number(e.id) || 0)) : 0) + 1,
-            ...payload,
-            status: 'active',
-            leave_balance: 14,
-            leaves_taken: 0
-        };
-        employees.push(newEmp);
-        window.showToast('Success', `New employee ${name} added!`, 'success');
-    }
-
-    window.saveEmployeesData(employees);
-    document.getElementById('addEmployeeModal').style.display = 'none';
-    refreshCurrentSection();
 }
 
 async function deleteEmployee(id) {
