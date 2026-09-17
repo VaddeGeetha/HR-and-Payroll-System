@@ -11,14 +11,14 @@ const authorize = require("../middleware/authorize");
 
 router.get(
   "/",
-  authorize("hr"),
+  authorize("hr","admin"),
   getMessages
 );
 
 router.post(
-  "/",
-  authorize("employee"),
-  sendMessage
-);
+  "/",authorize("admin","hr",
+  "employee"),
+  sendMessage);
+
 
 module.exports = router;
