@@ -1,6 +1,8 @@
 const express = require("express");
 const router = express.Router();
 
+const authorize = require("../middleware/authorize");
+
 const {
   applyLeave,
   getMyLeaves,
@@ -10,16 +12,22 @@ const {
   rejectLeave
 } = require("../controllers/leaveController");
 
-router.post("/", applyLeave);
+// HR/Admin → view all leaves
+router.get("/", authorize("hr", "admin"), getLeaves);
 
-router.get("/", getLeaves);
+// HR/Admin → view pending leaves
+router.get("/pending", authorize("hr", "admin"), getPendingLeaves);
 
-router.get("/pending", getPendingLeaves);
+// Employee → view own leaves and balance
+router.get("/my-leaves", authorize("employee"), getMyLeaves);
 
-router.get("/my-leaves", getMyLeaves);
+// Employee → apply leave
+router.post("/", authorize("employee"), applyLeave);
 
-router.put("/:id/approve", approveLeave);
+// HR/Admin → approve leave
+router.put("/:id/approve", authorize("hr", "admin"), approveLeave);
 
-router.put("/:id/reject", rejectLeave);
+// HR/Admin → reject leave
+router.put("/:id/reject", authorize("hr", "admin"), rejectLeave);
 
 module.exports = router;
