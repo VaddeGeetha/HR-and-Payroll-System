@@ -1462,55 +1462,62 @@ function calcLeaveDaysAuto() {
 
 async function submitApplyLeave(event) {
     event.preventDefault();
+    
     const type = document.getElementById('leaveTypeSelect').value;
     const from = document.getElementById('leaveFromDate').value;
     const to = document.getElementById('leaveToDate').value;
     const days = parseInt(document.getElementById('leaveCalculatedDays').value) || 1;
     const reason = document.getElementById('leaveReasonText').value.trim();
 
-    const userEmail = currentUser?.email || 'alex.employee@gmail.com';
-    const currentEmp = currentUser?.empData || (window._currentEmployees || []).find(e => e.email === userEmail) || { id: 1, name: currentUser?.name || 'Employee' };
+    // ✅ Validation
+    if (!type || !from || !to || !days || !reason) {
+        window.showToast('Validation Error', 'Please fill in all required fields.', 'error');
+        return;
+    }
 
+    // ✅ Build payload with CORRECT field names
     const newReq = {
-        employee_id: currentEmp.id,
-        employee_name: currentEmp.name,
         type: type,
-        from_date: from,
-        to_date: to,
+        from: from,
+        to: to,
         days: days,
-        reason: reason,
-        status: 'pending'
+        reason: reason
     };
+
+    console.log('📤 Sending leave application:', newReq);
 
     if (!window.useMockData && window.api) {
         try {
             window.showToast('Info', 'Submitting leave application to database...', 'info');
-            await window.api.applyLeave(newReq);
-            window.showToast('Success', 'Leave application submitted successfully in database!', 'success');
+            const response = await window.api.applyLeave(newReq);
+            console.log('✅ Leave application response:', response);
+            window.showToast('Success', 'Leave application submitted successfully!', 'success');
             if (currentUser?.email) await renderApp(currentUser.email);
             window.switchSection('my_leaves');
             return;
         } catch (e) {
-            console.error('Leave submission error:', e);
+            console.error('❌ Leave submission error:', e);
             window.showToast('Error', e.message || 'Failed to submit leave.', 'error');
             return;
         }
     }
 
+    // Local fallback
     const leaves = window._currentLeaves || [];
     leaves.unshift({
         id: Date.now(),
-        employee: currentEmp.name,
-        employee_id: currentEmp.id,
-        type, from, to, days, reason,
+        type: type,
+        from: from,
+        to: to,
+        days: days,
+        reason: reason,
         status: 'pending',
         comments: []
     });
     window.saveLeavesData(leaves);
-    window.showToast('Success', 'Leave application submitted successfully for HR approval!', 'success');
+    window.showToast('Success', 'Leave application submitted successfully!', 'success');
     window.switchSection('my_leaves');
 }
-
 function renderMyLeavesSection(userEmail, role, employees, leaves) {
     const currentEmp = employees.find(e => e.email && e.email.toLowerCase() === userEmail.toLowerCase()) || employees[0];
     const myLeavesList = leaves.filter(l => l.employee_id === currentEmp?.id || l.employee === currentEmp?.name);
