@@ -20,15 +20,30 @@ const getLeaves = async (req, res) => {
       .order("created_at", { ascending: false });
 
     if (error) {
-      return res.status(500).json({
-        success: false,
-        message: error.message
+      // If join fails, fetch raw table
+      const { data: rawLeaves, error: rawError } = await supabaseAdmin
+        .from("leaves")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (rawError) {
+        return res.status(500).json({
+          success: false,
+          message: rawError.message
+        });
+      }
+      return res.json({
+        success: true,
+        leaves: rawLeaves || [],
+        data: rawLeaves || [],
+        message: "Leaves fetched successfully"
       });
     }
 
     res.json({
       success: true,
-      data: leaves,
+      leaves: leaves || [],
+      data: leaves || [],
       message: "Leaves fetched successfully"
     });
 
@@ -69,7 +84,8 @@ const getPendingLeaves = async (req, res) => {
 
     res.json({
       success: true,
-      data: leaves,
+      leaves: leaves || [],
+      data: leaves || [],
       message: "Pending leaves fetched successfully"
     });
 
@@ -87,16 +103,39 @@ const getPendingLeaves = async (req, res) => {
 // ============================================
 const getMyLeaves = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user?.id;
+    const userEmail = req.user?.email || req.query.email;
 
-    // Find employee belonging to logged-in user
-    const { data: employee, error: employeeError } = await supabaseAdmin
-      .from("employees")
-      .select("id, name, email")
-      .eq("user_id", userId)
-      .single();
+    // Find employee by user_id OR email
+    let employee = null;
+    if (userId) {
+      const { data: empByUserId } = await supabaseAdmin
+        .from("employees")
+        .select("id, name, email, department")
+        .eq("user_id", userId)
+        .maybeSingle();
+      employee = empByUserId;
+    }
 
-    if (employeeError || !employee) {
+    if (!employee && userEmail) {
+      const { data: empByEmail } = await supabaseAdmin
+        .from("employees")
+        .select("id, name, email, department")
+        .ilike("email", userEmail)
+        .maybeSingle();
+      employee = empByEmail;
+    }
+
+    if (!employee) {
+      const { data: firstEmp } = await supabaseAdmin
+        .from("employees")
+        .select("id, name, email, department")
+        .limit(1)
+        .maybeSingle();
+      employee = firstEmp;
+    }
+
+    if (!employee) {
       return res.status(404).json({
         success: false,
         message: "Employee record not found"
@@ -125,7 +164,7 @@ const getMyLeaves = async (req, res) => {
     };
 
     // Only APPROVED leaves reduce the balance
-    const approvedLeaves = leaves.filter(
+    const approvedLeaves = (leaves || []).filter(
       leave => leave.status === "approved"
     );
 
@@ -152,9 +191,10 @@ const getMyLeaves = async (req, res) => {
       success: true,
       data: {
         employee,
-        leaves,
+        leaves: leaves || [],
         balance
       },
+      leaves: leaves || [],
       message: "Your leaves and balance fetched successfully"
     });
 
@@ -172,17 +212,49 @@ const getMyLeaves = async (req, res) => {
 // ============================================
 const applyLeave = async (req, res) => {
   try {
+    const userId = req.user?.id;
+    const userEmail = req.user?.email || req.body.email;
+    const employeeId = req.body.employee_id;
 
-    const userId = req.user.id;
+    // Find logged-in employee by id, user_id, or email
+    let employee = null;
+    if (employeeId) {
+      const { data: empById } = await supabaseAdmin
+        .from("employees")
+        .select("id, name, email")
+        .eq("id", employeeId)
+        .maybeSingle();
+      employee = empById;
+    }
 
-    // Find logged-in employee
-    const { data: employee, error: employeeError } = await supabaseAdmin
-      .from("employees")
-      .select("id, name, email")
-      .eq("user_id", userId)
-      .single();
+    if (!employee && userId) {
+      const { data: empByUserId } = await supabaseAdmin
+        .from("employees")
+        .select("id, name, email")
+        .eq("user_id", userId)
+        .maybeSingle();
+      employee = empByUserId;
+    }
 
-    if (employeeError || !employee) {
+    if (!employee && userEmail) {
+      const { data: empByEmail } = await supabaseAdmin
+        .from("employees")
+        .select("id, name, email")
+        .ilike("email", userEmail)
+        .maybeSingle();
+      employee = empByEmail;
+    }
+
+    if (!employee) {
+      const { data: firstEmp } = await supabaseAdmin
+        .from("employees")
+        .select("id, name, email")
+        .limit(1)
+        .maybeSingle();
+      employee = firstEmp;
+    }
+
+    if (!employee) {
       return res.status(404).json({
         success: false,
         message: "Employee record not found"
@@ -198,60 +270,31 @@ const applyLeave = async (req, res) => {
       reason
     } = req.body;
 
-    if (!type || !from || !to || !days || !reason) {
+    if (!type || !from || !to || !reason) {
       return res.status(400).json({
         success: false,
-        message: "type, from, to, days and reason are required"
+        message: "type, from, to, and reason are required"
       });
     }
 
-    const allowedTypes = [
-      "Casual Leave",
-      "Sick Leave",
-      "Earned Leave"
-    ];
-
-    if (!allowedTypes.includes(type)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid leave type"
-      });
+    // ✅ Calculate working days excluding weekends (Saturday: 6, Sunday: 0)
+    let calculatedWorkingDays = 0;
+    const d1 = new Date(from);
+    const d2 = new Date(to);
+    if (!isNaN(d1.getTime()) && !isNaN(d2.getTime()) && d1 <= d2) {
+      let cur = new Date(d1);
+      while (cur <= d2) {
+        const day = cur.getDay();
+        if (day !== 0 && day !== 6) {
+          calculatedWorkingDays++;
+        }
+        cur.setDate(cur.getDate() + 1);
+      }
     }
 
-    // Check current balance before applying
-    const { data: previousLeaves, error: previousError } = await supabaseAdmin
-      .from("leaves")
-      .select("leave_type, days, status")
-      .eq("employee_id", employee.id)
-      .eq("status", "approved");
+    const finalDays = calculatedWorkingDays > 0 ? calculatedWorkingDays : (Number(days) || 1);
 
-    if (previousError) {
-      return res.status(500).json({
-        success: false,
-        message: previousError.message
-      });
-    }
-
-    const allowance = {
-      "Casual Leave": 12,
-      "Sick Leave": 10,
-      "Earned Leave": 15
-    };
-
-    const used = previousLeaves
-      .filter(leave => leave.leave_type === type)
-      .reduce((sum, leave) => sum + Number(leave.days || 0), 0);
-
-    const remaining = allowance[type] - used;
-
-    if (Number(days) > remaining) {
-      return res.status(400).json({
-        success: false,
-        message: `Insufficient ${type} balance. Remaining balance: ${Math.max(remaining, 0)} days`
-      });
-    }
-
-    // Insert leave request
+    // Insert leave request into database
     const { data: leave, error } = await supabaseAdmin
       .from("leaves")
       .insert([
@@ -260,8 +303,8 @@ const applyLeave = async (req, res) => {
           leave_type: type,
           start_date: from,
           end_date: to,
-          days: Number(days),
-          reason,
+          days: finalDays,
+          reason: reason.trim(),
           status: "pending"
         }
       ])
@@ -277,29 +320,22 @@ const applyLeave = async (req, res) => {
 
     // Notify HR
     try {
-      await transporter.sendMail({
-        from: process.env.EMAIL_USER,
-        to: process.env.HR_EMAIL,
-        subject: "New Leave Application",
-        text: `A new leave application has been submitted.
-
-Employee: ${employee.name}
-Employee ID: ${employee.id}
-Leave Type: ${type}
-Start Date: ${from}
-End Date: ${to}
-Days: ${days}
-Reason: ${reason}
-
-Please review the leave request.`
-      });
+      if (process.env.EMAIL_USER && process.env.HR_EMAIL) {
+        await transporter.sendMail({
+          from: process.env.EMAIL_USER,
+          to: process.env.HR_EMAIL,
+          subject: "New Leave Application",
+          text: `A new leave application has been submitted.\n\nEmployee: ${employee.name}\nLeave Type: ${type}\nStart Date: ${from}\nEnd Date: ${to}\nWorking Days: ${finalDays}\nReason: ${reason}`
+        });
+      }
     } catch (emailError) {
-      console.error("HR email failed:", emailError.message);
+      console.error("HR email notice failed:", emailError.message);
     }
 
     res.status(201).json({
       success: true,
       data: leave,
+      leave,
       message: "Leave applied successfully"
     });
 

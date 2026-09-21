@@ -39,56 +39,59 @@ class ApiService {
     }
 
     async request(endpoint, options = {}) {
-        this.updateBaseURL();
-        const token = this.getToken();
-        
-        const headers = {
-            'Content-Type': 'application/json',
-            
-            ...(this.token && { 'Authorization': `Bearer ${this.token}` })
-        };
+    this.updateBaseURL();
+    const token = this.getToken();  // ✅ Get token first
+    
+    const headers = {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true',  // ✅ ADD THIS BACK
+        ...(token && { 'Authorization': `Bearer ${token}` })  // ✅ Use `token` variable
+    };
 
-        const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-        const url = `${this.baseURL}${cleanEndpoint}`;
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const url = `${this.baseURL}${cleanEndpoint}`;
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), options.timeout || 6000);
+    // ✅ DEBUG LOGS — Remove after fixing
+    console.log('═══════════════════════════════════');
+    console.log(`🌐 ${options.method || 'GET'} ${url}`);
+    console.log('🔑 Token:', token ? token.substring(0, 30) + '...' : '❌ NO TOKEN');
+    console.log('📋 Auth Header:', headers.Authorization ? '✅ Present' : '❌ Missing');
+    console.log('═══════════════════════════════════');
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), options.timeout || 15000);  // ✅ 15s not 6s
+
+    try {
+        const response = await fetch(url, {
+            ...options,
+            headers,
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        const text = await response.text();
+        let data;
         try {
-            const response = await fetch(url, {
-                ...options,
-                headers,
-                signal: controller.signal
-            });
-            clearTimeout(timeoutId);
-
-            const text = await response.text();
-            let data;
-            try {
-                data = text ? JSON.parse(text) : {};
-            } catch (e) {
-                console.error(`❌ Server returned non-JSON response (Status ${response.status}) from ${url}:`, text);
-                if (response.status === 404) {
-                    throw new Error(`Endpoint not found (404) at ${url}. Ensure backend is running ("node index.js") on port 5000.`);
-                }
-                throw new Error(`Server returned status ${response.status} with non-JSON response.`);
-            }
-
-            if (!response.ok) {
-                const errMsg = data.message || data.error || `API request failed with status: ${response.status}`;
-                throw new Error(errMsg);
-            }
-            return data;
-        } catch (error) {
-            clearTimeout(timeoutId);
-            if (error.name === 'AbortError') {
-                console.warn(`[ApiService Timeout] Request to ${url} timed out.`);
-                throw new Error(`Connection timed out reaching ${url}. Check your backend server.`);
-            }
-            console.error(`[ApiService Error] ${endpoint}:`, error.message);
-            throw error;
+            data = text ? JSON.parse(text) : {};
+        } catch (e) {
+            console.error(`❌ Non-JSON response (Status ${response.status}):`, text.substring(0, 200));
+            throw new Error(`Server returned status ${response.status} with non-JSON response.`);
         }
+
+        if (!response.ok) {
+            const errMsg = data.message || data.error || `API request failed with status: ${response.status}`;
+            throw new Error(errMsg);
+        }
+        return data;
+    } catch (error) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+            throw new Error(`Request timed out. Backend may be sleeping (Render free tier).`);
+        }
+        console.error(`[ApiService Error] ${endpoint}:`, error.message);
+        throw error;
     }
+}
 
     // ===== AUTH ENDPOINTS =====
     async login(email, password) {
@@ -158,12 +161,19 @@ class ApiService {
     // ===== LEAVE ENDPOINTS =====
     async getLeaves() {
         const response = await this.request('/leaves');
-        return response?.leaves || (Array.isArray(response) ? response : []);
+        if (Array.isArray(response)) return response;
+        if (Array.isArray(response?.leaves)) return response.leaves;
+        if (Array.isArray(response?.data)) return response.data;
+        return [];
     }
 
     async getMyLeaves() {
         const response = await this.request('/leaves/my-leaves');
-        return response?.leaves || (Array.isArray(response) ? response : []);
+        if (Array.isArray(response)) return response;
+        if (Array.isArray(response?.leaves)) return response.leaves;
+        if (Array.isArray(response?.data?.leaves)) return response.data.leaves;
+        if (Array.isArray(response?.data)) return response.data;
+        return [];
     }
 
     async applyLeave(leaveData) {
@@ -192,19 +202,28 @@ class ApiService {
 
     async getMyPayslips() {
         const response = await this.request('/payroll/my-payslips');
-        return response?.payslips || (Array.isArray(response) ? response : []);
+        if (Array.isArray(response)) return response;
+        if (Array.isArray(response?.payslips)) return response.payslips;
+        if (Array.isArray(response?.data)) return response.data;
+        return [];
     }
 
     // ===== DEPARTMENTS =====
     async getDepartments() {
         const response = await this.request('/departments');
-        return response?.departments || (Array.isArray(response) ? response : []);
+        if (Array.isArray(response)) return response;
+        if (Array.isArray(response?.departments)) return response.departments;
+        if (Array.isArray(response?.data)) return response.data;
+        return [];
     }
 
     // ===== MESSAGES =====
     async getMessages() {
         const response = await this.request('/messages');
-        return response?.messages || (Array.isArray(response) ? response : []);
+        if (Array.isArray(response)) return response;
+        if (Array.isArray(response?.messages)) return response.messages;
+        if (Array.isArray(response?.data)) return response.data;
+        return [];
     }
 
     async sendMessage(messageData) {

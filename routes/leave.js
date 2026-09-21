@@ -10,16 +10,13 @@ const {
   rejectLeave
 } = require("../controllers/leaveController");
 
-router.post("/", applyLeave);
+const authorize = require("../middleware/authorize");
 
-router.get("/", getLeaves);
-
-router.get("/pending", getPendingLeaves);
-
-router.get("/my-leaves", getMyLeaves);
-
-router.put("/:id/approve", approveLeave);
-
-router.put("/:id/reject", rejectLeave);
+router.post("/", authorize("admin", "hr", "employee"), applyLeave);
+router.get("/", authorize("admin", "hr", "employee"), getLeaves);
+router.get("/pending", authorize("admin", "hr"), getPendingLeaves);
+router.get("/my-leaves", authorize("admin", "hr", "employee"), getMyLeaves);
+router.put("/:id/approve", authorize("admin", "hr"), approveLeave);
+router.put("/:id/reject", authorize("admin", "hr"), rejectLeave);
 
 module.exports = router;

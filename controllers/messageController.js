@@ -6,15 +6,20 @@ const { supabaseAdmin } = require("../supabase");
 // ============================================
 const getMessages = async (req, res) => {
   try {
-    const userEmail = req.user.email;
+    const userEmail = req.user?.email || req.query.email || req.query.from_email;
+    const userRole = req.user?.role;
 
-    const { data: messages, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from("messages")
       .select("*")
-      .or(
-        `from_email.eq.${userEmail},to_email.eq.${userEmail}`
-      )
       .order("created_at", { ascending: true });
+
+    // If regular employee, only show their conversations
+    if (userRole === "employee" && userEmail) {
+      query = query.or(`from_email.ilike.${userEmail},to_email.ilike.${userEmail}`);
+    }
+
+    const { data: messages, error } = await query;
 
     if (error) {
       return res.status(500).json({
@@ -25,8 +30,8 @@ const getMessages = async (req, res) => {
 
     res.json({
       success: true,
-      messages,
-      data: messages,
+      messages: messages || [],
+      data: messages || [],
       message: "Messages fetched successfully"
     });
 
@@ -45,17 +50,16 @@ const getMessages = async (req, res) => {
 // ============================================
 const sendMessage = async (req, res) => {
   try {
-    const userEmail = req.user.email;
+    const userEmail = req.user?.email;
 
-    const {
-      toEmail,
-      text
-    } = req.body;
+    const fromEmail = req.body.from_email || req.body.fromEmail || req.body.from || userEmail || "hr.hr@gmail.com";
+    const toEmail = req.body.to_email || req.body.toEmail || req.body.to;
+    const text = req.body.text || req.body.message;
 
     if (!toEmail || !text) {
       return res.status(400).json({
         success: false,
-        message: "toEmail and text are required"
+        message: "to_email and text are required"
       });
     }
 
@@ -63,9 +67,9 @@ const sendMessage = async (req, res) => {
       .from("messages")
       .insert([
         {
-          from_email: userEmail,
+          from_email: fromEmail,
           to_email: toEmail,
-          text,
+          text: text.trim(),
           timestamp: Date.now()
         }
       ])

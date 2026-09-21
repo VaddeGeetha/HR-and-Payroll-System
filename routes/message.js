@@ -1,5 +1,4 @@
 const express = require("express");
-
 const router = express.Router();
 
 const {
@@ -9,16 +8,8 @@ const {
 
 const authorize = require("../middleware/authorize");
 
-router.get(
-  "/",
-  authorize("hr"),
-  getMessages
-);
-
-router.post(
-  "/",
-  authorize("employee"),
-  sendMessage
-);
+// Both GET and POST are available for admin, hr, and employee
+router.get("/", authorize("admin", "hr", "employee"), getMessages);
+router.post("/", authorize("admin", "hr", "employee"), sendMessage);
 
 module.exports = router;

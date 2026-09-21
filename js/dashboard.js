@@ -322,7 +322,7 @@ async function renderApp(userEmail) {
 
     // Parallel Fast Data Loading
     try {
-        const [empResult, leaveResult,msgResult] = await Promise.allSettled([
+        const [empResult, leaveResult, msgResult] = await Promise.allSettled([
             fetchEmployees(),
             fetchLeaves(),
             fetchMessages()
@@ -337,12 +337,21 @@ async function renderApp(userEmail) {
             }
         }
 
-       
-           if (msgResult.status === 'fulfilled' && Array.isArray(msgResult.value)) {
-        window._currentMessages = msgResult.value;
-    } else {
-        window._currentMessages = [];
-    }
+        if (leaveResult.status === 'fulfilled') {
+            if (Array.isArray(leaveResult.value)) {
+                leaves = leaveResult.value;
+            } else if (Array.isArray(leaveResult.value?.leaves)) {
+                leaves = leaveResult.value.leaves;
+            } else if (Array.isArray(leaveResult.value?.data)) {
+                leaves = leaveResult.value.data;
+            }
+        }
+
+        if (msgResult.status === 'fulfilled' && Array.isArray(msgResult.value)) {
+            window._currentMessages = msgResult.value;
+        } else {
+            window._currentMessages = [];
+        }
     } catch (err) {
         console.error('Data load error:', err);
     }
@@ -358,6 +367,8 @@ async function renderApp(userEmail) {
     const currentEmp = employees.find(e => e.email && e.email.toLowerCase() === userEmail.toLowerCase()) || null;
     const name = currentEmp ? currentEmp.name : getNameFromEmail(userEmail);
     currentUser = { email: userEmail, role, name, empData: currentEmp };
+    window.currentUser = currentUser;
+    window.userEmail = userEmail;
 
     // Update Navbar Name & Badge
     const nameDisplay = document.getElementById('employeeNameDisplay');
