@@ -322,9 +322,10 @@ async function renderApp(userEmail) {
 
     // Parallel Fast Data Loading
     try {
-        const [empResult, leaveResult] = await Promise.allSettled([
+        const [empResult, leaveResult,msgResult] = await Promise.allSettled([
             fetchEmployees(),
-            fetchLeaves()
+            fetchLeaves(),
+            fetchMessages()
         ]);
 
         if (empResult.status === 'fulfilled' && Array.isArray(empResult.value)) {
@@ -336,9 +337,12 @@ async function renderApp(userEmail) {
             }
         }
 
-        if (leaveResult.status === 'fulfilled' && Array.isArray(leaveResult.value)) {
-            leaves = leaveResult.value;
-        }
+       
+           if (msgResult.status === 'fulfilled' && Array.isArray(msgResult.value)) {
+        window._currentMessages = msgResult.value;
+    } else {
+        window._currentMessages = [];
+    }
     } catch (err) {
         console.error('Data load error:', err);
     }
