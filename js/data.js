@@ -78,20 +78,28 @@ function saveLeavesData(leaves) {
     }
     window.dispatchEvent(new CustomEvent('hr_data_updated', { detail: { type: 'leaves' } }));
 }
-
 async function fetchMessages() {
-    if (!useMockData) {
-        if (window.api) {
-            try {
-                const msgs = await window.api.getMessages();
-                if (Array.isArray(msgs)) return msgs;
-            } catch (e) {}
+    // ✅ Fetch from backend API (primary)
+    if (!useMockData && window.api) {
+        try {
+            const msgs = await window.api.getMessages();
+            if (Array.isArray(msgs)) {
+                window._currentMessages = msgs;
+                return msgs;
+            }
+            if (msgs?.messages && Array.isArray(msgs.messages)) {
+                window._currentMessages = msgs.messages;
+                return msgs.messages;
+            }
+            return [];
+        } catch (e) {
+            console.warn('⚠️ Failed to fetch messages:', e.message);
+            return [];
         }
-        return [];
     }
+    // Mock fallback
     return MOCK_DATA.messages || [];
 }
-
 function saveMessagesData(messages) {
     if (useMockData) {
         MOCK_DATA.messages = messages;
