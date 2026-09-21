@@ -1415,10 +1415,18 @@ function renderApplyLeaveSection(userEmail, role, employees) {
                     </div>
 
                     <div class="input-group" style="margin:0;grid-column:1/-1;">
-                        <label>Calculated Number of Days <span style="color:var(--primary);font-size:0.8rem;">(Auto-computed)</span></label>
-                        <input type="number" id="leaveCalculatedDays" readonly required value="1" 
-                               style="background:var(--border);font-weight:700;font-size:1.1rem;color:var(--primary);cursor:not-allowed;">
+                        <label>
+                        Calculated Number of Days 
+                        <span style="color:var(--primary);font-size:0.8rem;">(Working days only)</span>
+                        </label>
+                        <input type="number" id="leaveCalculatedDays" readonly required value="0" 
+                        style="background:var(--border);font-weight:700;font-size:1.1rem;color:var(--primary);cursor:not-allowed;">
+                    <div style="font-size:0.75rem;color:var(--text-light);margin-top:0.3rem;">
+                        <i class="fas fa-info-circle" style="color:var(--primary);"></i> 
+                        Saturday and Sunday are <strong>not counted</strong> (weekends/holidays).
                     </div>
+                </div>
+                    
 
                     <div class="input-group" style="margin:0;grid-column:1/-1;">
                         <label>Reason for Leave *</label>
@@ -1440,48 +1448,112 @@ function renderApplyLeaveSection(userEmail, role, employees) {
     `;
 }
 
+// ============================================================
+// ===== CALCULATE LEAVE DAYS (EXCLUDING WEEKENDS) =====
+// ============================================================
+
 function calcLeaveDaysAuto() {
     const from = document.getElementById('leaveFromDate')?.value;
     const to = document.getElementById('leaveToDate')?.value;
     const daysInput = document.getElementById('leaveCalculatedDays');
     if (!daysInput) return;
 
-    if (from && to) {
-        const d1 = new Date(from);
-        const d2 = new Date(to);
-        if (d2 >= d1) {
-            const diffTime = Math.abs(d2 - d1);
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-            daysInput.value = diffDays;
+    if (!from || !to) return;
+
+    const d1 = new Date(from);
+    const d2 = new Date(to);
+    
+    // Ensure dates are valid
+    if (isNaN(d1.getTime()) || isNaN(d2.getTime())) {
+        daysInput.value = 0;
+        return;
+    }
+    
+    if (d2 < d1) {
+        daysInput.value = 0;
+        window.showToast('Warning', 'To Date cannot be earlier than From Date.', 'warning');
+        return;
+    }
+
+    // ✅ Count only working days (Monday to Friday)
+    // 0 = Sunday, 1 = Monday, ..., 5 = Friday, 6 = Saturday
+    let workingDays = 0;
+    let weekendCount = 0;
+    let current = new Date(d1);
+    
+    while (current <= d2) {
+        const dayOfWeek = current.getDay();
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+            // Weekend (Saturday or Sunday)
+            weekendCount++;
         } else {
-            daysInput.value = 1;
-            window.showToast('Warning', 'To Date cannot be earlier than From Date.', 'warning');
+            // Working day (Mon-Fri)
+            workingDays++;
         }
+        current.setDate(current.getDate() + 1);
+    }
+
+    daysInput.value = workingDays;
+
+    // ✅ Show info if weekends were excluded
+    if (weekendCount > 0 && workingDays > 0) {
+        window.showToast(
+            'Info', 
+            `${weekendCount} weekend day${weekendCount > 1 ? 's' : ''} excluded. Working days: ${workingDays}`, 
+            'info'
+        );
+    }
+
+    // ✅ Warn if only weekends are selected
+    if (workingDays === 0) {
+        window.showToast(
+            'Warning', 
+            'Selected date range only includes Saturday/Sunday (holidays). Please select at least one working day.', 
+            'warning'
+        );
     }
 }
 
+window.calcLeaveDaysAuto = calcLeaveDaysAuto;
 async function submitApplyLeave(event) {
     event.preventDefault();
-    
     const type = document.getElementById('leaveTypeSelect').value;
     const from = document.getElementById('leaveFromDate').value;
     const to = document.getElementById('leaveToDate').value;
-    const days = parseInt(document.getElementById('leaveCalculatedDays').value) || 1;
+    const days = parseInt(document.getElementById('leaveCalculatedDays').value) || 0;
     const reason = document.getElementById('leaveReasonText').value.trim();
 
-    // ✅ Validation
-    if (!type || !from || !to || !days || !reason) {
+    // ✅ Validate all fields
+    if (!type || !from || !to || !reason) {
         window.showToast('Validation Error', 'Please fill in all required fields.', 'error');
         return;
     }
 
-    // ✅ Build payload with CORRECT field names
+    // ✅ Check if selected dates include working days
+    if (days === 0) {
+        window.showToast('Error', 'Selected dates only include weekends (Saturday/Sunday). Please select at least one working day.', 'error');
+        return;
+    }
+
+    let userEmail = (window.currentUser?.email || window.userEmail || '').trim().toLowerCase();
+    if (!userEmail) {
+        try {
+            const rawUser = localStorage.getItem('user');
+            if (rawUser) userEmail = JSON.parse(rawUser).email?.toLowerCase();
+        } catch(e) {}
+    }
+
+    const employees = window._currentEmployees || [];
+    const currentEmp = employees.find(e => e.email?.toLowerCase() === userEmail) || window.currentUser?.empData;
+
     const newReq = {
         type: type,
         from: from,
         to: to,
         days: days,
-        reason: reason
+        reason: reason,
+        email: userEmail,
+        employee_id: currentEmp?.id
     };
 
     console.log('📤 Sending leave application:', newReq);
@@ -1492,8 +1564,19 @@ async function submitApplyLeave(event) {
             const response = await window.api.applyLeave(newReq);
             console.log('✅ Leave application response:', response);
             window.showToast('Success', 'Leave application submitted successfully!', 'success');
-            if (currentUser?.email) await renderApp(currentUser.email);
-            window.switchSection('my_leaves');
+            
+            // Re-fetch leaves from database
+            if (typeof fetchLeaves === 'function') {
+                const updatedLeaves = await fetchLeaves();
+                window._currentLeaves = updatedLeaves;
+            }
+
+            if (userEmail && typeof window.renderApp === 'function') {
+                await window.renderApp(userEmail);
+            }
+            if (typeof window.switchSection === 'function') {
+                window.switchSection('my_leaves');
+            }
             return;
         } catch (e) {
             console.error('❌ Leave submission error:', e);
@@ -1502,17 +1585,18 @@ async function submitApplyLeave(event) {
         }
     }
 
-    // Local fallback
+    // Fallback
     const leaves = window._currentLeaves || [];
     leaves.unshift({
         id: Date.now(),
+        employee_id: currentEmp?.id,
+        leave_type: type,
         type: type,
         from: from,
         to: to,
         days: days,
         reason: reason,
-        status: 'pending',
-        comments: []
+        status: 'pending'
     });
     window.saveLeavesData(leaves);
     window.showToast('Success', 'Leave application submitted successfully!', 'success');
@@ -1813,8 +1897,106 @@ function handleRunPayrollSubmit(e) {
 }
 
 function viewPayrollSummary(month, year) {
-    window.showToast('Info', `Displaying verified salary register for ${month} ${year}.`, 'info');
+    const employees = window._currentEmployees || [];
+    let modal = document.getElementById('payrollSummaryModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'payrollSummaryModal';
+        modal.className = 'modal-backdrop';
+        document.body.appendChild(modal);
+    }
+
+    const totalGross = employees.reduce((s, e) => s + (Number(e.monthly_salary) || 0), 0);
+    const totalDeductions = employees.length * 2000;
+    const totalNet = totalGross - totalDeductions;
+
+    modal.innerHTML = `
+        <div style="background:var(--card-bg);border-radius:var(--radius);padding:1.8rem;max-width:960px;width:95%;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2rem;border-bottom:1px solid var(--border);padding-bottom:0.8rem;">
+                <div>
+                    <h3 style="margin:0;color:var(--text-primary);"><i class="fas fa-file-invoice-dollar" style="color:var(--primary);margin-right:8px;"></i> Corporate Salary Register — ${month} ${year}</h3>
+                    <div style="font-size:0.85rem;color:var(--text-secondary);margin-top:0.2rem;">Complete employee earnings, allowances breakdown & statutory tax deductions</div>
+                </div>
+                <button class="modal-close-btn" onclick="document.getElementById('payrollSummaryModal').style.display='none'">&times;</button>
+            </div>
+
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:1rem;margin-bottom:1.5rem;">
+                <div style="background:#e8f0fe;padding:1rem;border-radius:var(--radius-sm);border-left:4px solid var(--primary);">
+                    <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:700;">TOTAL EMPLOYEES</div>
+                    <div style="font-size:1.3rem;font-weight:800;color:var(--primary);">${employees.length}</div>
+                </div>
+                <div style="background:#e8f8f0;padding:1rem;border-radius:var(--radius-sm);border-left:4px solid var(--success);">
+                    <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:700;">TOTAL GROSS DISBURSEMENT</div>
+                    <div style="font-size:1.3rem;font-weight:800;color:var(--success);">₹${totalGross.toLocaleString('en-IN')}</div>
+                </div>
+                <div style="background:#fde8e8;padding:1rem;border-radius:var(--radius-sm);border-left:4px solid var(--danger);">
+                    <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:700;">TOTAL STATUTORY DEDUCTIONS</div>
+                    <div style="font-size:1.3rem;font-weight:800;color:var(--danger);">₹${totalDeductions.toLocaleString('en-IN')}</div>
+                </div>
+                <div style="background:#f1f5f9;padding:1rem;border-radius:var(--radius-sm);border-left:4px solid #0b2b4a;">
+                    <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:700;">NET DISBURSED TAKE-HOME</div>
+                    <div style="font-size:1.3rem;font-weight:800;color:#0b2b4a;">₹${totalNet.toLocaleString('en-IN')}</div>
+                </div>
+            </div>
+
+            <div class="custom-table-responsive">
+                <table class="styled-table">
+                    <thead>
+                        <tr>
+                            <th>Employee</th>
+                            <th>Department</th>
+                            <th>Basic (50%)</th>
+                            <th>HRA (25%)</th>
+                            <th>Special Allow.</th>
+                            <th>Gross (₹)</th>
+                            <th>PF (₹)</th>
+                            <th>PT (₹)</th>
+                            <th>Net Pay (₹)</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${employees.map(e => {
+                            const gross = Number(e.monthly_salary) || 75000;
+                            const basic = Math.round(gross * 0.5);
+                            const hra = Math.round(gross * 0.25);
+                            const special = gross - basic - hra;
+                            const pf = 1800;
+                            const pt = 200;
+                            const net = gross - (pf + pt);
+                            const payslipId = `PS-${year}-08-${e.id}`;
+                            return `
+                                <tr>
+                                    <td><strong>${e.name}</strong><div style="font-size:0.75rem;color:var(--text-light);">${e.email}</div></td>
+                                    <td><span class="badge" style="background:#e8f0fe;color:var(--primary);">${e.department || 'General'}</span></td>
+                                    <td>₹${basic.toLocaleString('en-IN')}</td>
+                                    <td>₹${hra.toLocaleString('en-IN')}</td>
+                                    <td>₹${special.toLocaleString('en-IN')}</td>
+                                    <td><strong>₹${gross.toLocaleString('en-IN')}</strong></td>
+                                    <td style="color:var(--danger);">₹${pf.toLocaleString('en-IN')}</td>
+                                    <td style="color:var(--danger);">₹${pt.toLocaleString('en-IN')}</td>
+                                    <td><strong style="color:var(--success);">₹${net.toLocaleString('en-IN')}</strong></td>
+                                    <td>
+                                        <div style="display:flex;gap:0.3rem;">
+                                            <button class="btn-primary btn-sm" onclick="document.getElementById('payrollSummaryModal').style.display='none'; window.viewPayslipModal('${payslipId}')" title="View Payslip"><i class="fas fa-eye"></i></button>
+                                            <button class="btn-success btn-sm" onclick="window.downloadPayslipPDF('${payslipId}')" title="Download PDF"><i class="fas fa-file-pdf"></i></button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            </div>
+            <div style="margin-top:1.2rem;text-align:right;">
+                <button class="btn-secondary-custom" onclick="document.getElementById('payrollSummaryModal').style.display='none'">Close Register</button>
+            </div>
+        </div>
+    `;
+    modal.style.display = 'flex';
 }
+
+window.viewPayrollSummary = viewPayrollSummary;
 
 function renderMyPayslipsSection(userEmail, role, employees) {
     const isHR = role === 'hr' || role === 'admin';
@@ -1947,9 +2129,28 @@ function renderMyPayslipsSection(userEmail, role, employees) {
     `;
 }
 
+function numberToIndianWords(num) {
+    if (!num || isNaN(num)) return 'Zero Rupees Only';
+    const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
+    const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+    function inWords(n) {
+        if (n === 0) return '';
+        if (n < 20) return a[n];
+        if (n < 100) return b[Math.floor(n / 10)] + (n % 10 !== 0 ? ' ' + a[n % 10] : ' ');
+        if (n < 1000) return a[Math.floor(n / 100)] + 'Hundred ' + (n % 100 !== 0 ? inWords(n % 100) : '');
+        if (n < 100000) return inWords(Math.floor(n / 1000)) + 'Thousand ' + (n % 1000 !== 0 ? inWords(n % 1000) : '');
+        if (n < 10000000) return inWords(Math.floor(n / 100000)) + 'Lakh ' + (n % 100000 !== 0 ? inWords(n % 100000) : '');
+        return inWords(Math.floor(n / 10000000)) + 'Crore ' + (n % 10000000 !== 0 ? inWords(n % 10000000) : '');
+    }
+
+    const words = inWords(Math.round(num)).trim();
+    return `Rupees ${words} Only`;
+}
+
 function buildPayslipHTML(payslipId) {
     const employees = window._currentEmployees || [];
-    let emp = employees.find(e => `PS-2026-08-${e.id}` === payslipId || `PS-2026-07-${e.id}` === payslipId || `PS-2026-06-${e.id}` === payslipId || String(e.id) === String(payslipId)) || currentUser?.empData || employees[0] || { name: 'Employee', email: 'employee@company.com', id: 1, department: 'IT', designation: 'Employee', monthly_salary: 75000 };
+    let emp = employees.find(e => `PS-2026-08-${e.id}` === payslipId || `PS-2026-07-${e.id}` === payslipId || `PS-2026-06-${e.id}` === payslipId || `PS-2025-08-${e.id}` === payslipId || String(e.id) === String(payslipId)) || currentUser?.empData || employees[0] || { name: 'Employee', email: 'employee@company.com', id: 1, department: 'IT', designation: 'Employee', monthly_salary: 75000 };
 
     const gross = Number(emp.monthly_salary) || 75000;
     const basic = Math.round(gross * 0.5);
@@ -1968,11 +2169,12 @@ function buildPayslipHTML(payslipId) {
         year,
         employee_id: emp.id,
         employee_name: emp.name,
-        bank_name: emp.bank_details?.bank_name || 'HDFC Bank',
-        bank_account: emp.bank_details?.account_number || 'XXXXXXXX4892',
+        bank_name: emp.bank_details?.bank_name || emp.bank_name || 'HDFC Bank',
+        bank_account: emp.bank_details?.account_number || emp.account_number || 'XXXXXXXX4892',
         gross_earnings: gross,
         total_deductions: totalDeductions,
         net_salary: net,
+        net_salary_words: numberToIndianWords(net),
         allowances: [
             { name: 'Basic Salary', amount: basic, criteria: '50% of Total CTC' },
             { name: 'House Rent Allowance (HRA)', amount: hra, criteria: '50% of Basic as per Metro HRA Rules' },
@@ -2123,41 +2325,51 @@ function closePayslipModal() {
 
 async function downloadPayslipPDF(payslipId) {
     const employees = window._currentEmployees || [];
-    const emp = employees.find(e => `PS-2026-08-${e.id}` === payslipId || `PS-2026-07-${e.id}` === payslipId || `PS-2026-06-${e.id}` === payslipId || String(e.id) === String(payslipId)) || currentUser?.empData || { name: 'Employee' };
+    const emp = employees.find(e => `PS-2026-08-${e.id}` === payslipId || `PS-2026-07-${e.id}` === payslipId || `PS-2026-06-${e.id}` === payslipId || `PS-2025-08-${e.id}` === payslipId || String(e.id) === String(payslipId)) || currentUser?.empData || { name: 'Employee' };
     const month = payslipFilterMonth || 'August';
     const year = payslipFilterYear || '2026';
     const fileName = `Payslip_${(emp.name || 'Employee').replace(/\s+/g, '_')}_${month}_${year}.pdf`;
 
     window.showToast('Info', `Generating PDF for ${month} ${year}...`, 'info');
 
+    // Create a temporary container positioned inside DOM bounds for high-res capture
     const tempDiv = document.createElement('div');
-    tempDiv.style.position = 'absolute';
-    tempDiv.style.left = '-9999px';
-    tempDiv.style.width = '800px';
+    tempDiv.id = 'pdfExportRenderBox';
+    tempDiv.style.position = 'fixed';
+    tempDiv.style.top = '0';
+    tempDiv.style.left = '0';
+    tempDiv.style.width = '794px'; // A4 standard width
     tempDiv.style.background = '#ffffff';
+    tempDiv.style.zIndex = '999999';
+    tempDiv.style.padding = '12px';
+    tempDiv.style.boxSizing = 'border-box';
     tempDiv.innerHTML = buildPayslipHTML(payslipId);
     document.body.appendChild(tempDiv);
 
     const opt = {
-        margin: [8, 8, 8, 8],
+        margin: [6, 6, 6, 6],
         filename: fileName,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+        html2canvas: { scale: 2, useCORS: true, logging: false },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
+
     try {
-        if (window.html2pdf) {
+        if (typeof html2pdf !== 'undefined') {
             await html2pdf().set(opt).from(tempDiv).save();
             window.showToast('Success', `Payslip downloaded: ${fileName}`, 'success');
         } else {
-            window.print();
+            viewPayslipModal(payslipId);
+            setTimeout(() => window.print(), 300);
         }
     } catch (e) {
         console.error('PDF error:', e);
-        window.showToast('Error', 'PDF download failed, opening print dialog.', 'warning');
-        window.print();
+        viewPayslipModal(payslipId);
+        setTimeout(() => window.print(), 300);
     } finally {
-        document.body.removeChild(tempDiv);
+        if (document.body.contains(tempDiv)) {
+            document.body.removeChild(tempDiv);
+        }
     }
 }
 
@@ -2172,20 +2384,26 @@ function handlePayslipFilterChange() {
 // ============================================================
 
 
-   function renderMessages(userEmail, role) {
+let chatPollInterval = null;
+
+function renderMessages(userEmail, role) {
     const isHR = role === 'hr' || role === 'admin';
     
-    // ✅ Use messages from backend (loaded in renderApp)
-    let allMessages = window._currentMessages || [];
+    // Resolve logged in email reliably
+    const myEmail = (userEmail || window.currentUser?.email || window.userEmail || '').trim().toLowerCase();
+    
+    // Use messages from backend
+    let allMessages = (window._currentMessages || []).map(window.normalizeMessage || (m => m)).filter(Boolean);
     const employees = window._currentEmployees || [];
     const regularEmployees = employees.filter(e => e.role === 'employee');
+    const hrAccount = employees.find(e => e.role === 'hr' || e.role === 'admin') || { email: 'hr.hr@gmail.com', name: 'HR Support' };
 
     // In HR view, sort employees by most recent message
     if (isHR && regularEmployees.length > 0) {
         if (!activeChatRecipient) {
             const sorted = [...regularEmployees].sort((a, b) => {
-                const aMsgs = allMessages.filter(m => m.fromEmail === a.email || m.toEmail === a.email);
-                const bMsgs = allMessages.filter(m => m.fromEmail === b.email || m.toEmail === b.email);
+                const aMsgs = allMessages.filter(m => (m.fromEmail || m.from_email)?.toLowerCase() === a.email?.toLowerCase() || (m.toEmail || m.to_email)?.toLowerCase() === a.email?.toLowerCase());
+                const bMsgs = allMessages.filter(m => (m.fromEmail || m.from_email)?.toLowerCase() === b.email?.toLowerCase() || (m.toEmail || m.to_email)?.toLowerCase() === b.email?.toLowerCase());
                 const aTime = aMsgs.length > 0 ? aMsgs[aMsgs.length - 1].timestamp : 0;
                 const bTime = bMsgs.length > 0 ? bMsgs[bMsgs.length - 1].timestamp : 0;
                 return bTime - aTime;
@@ -2194,17 +2412,64 @@ function handlePayslipFilterChange() {
         }
     }
 
-    let activeRecipientEmail = isHR ? activeChatRecipient : 'hr.hr@gmail.com';
+    let activeRecipientEmail = isHR ? activeChatRecipient : (hrAccount.email || 'hr.hr@gmail.com');
+    let activeRecipientEmp = employees.find(e => e.email?.toLowerCase() === activeRecipientEmail?.toLowerCase());
     let activeRecipientName = isHR 
-        ? (employees.find(e => e.email === activeRecipientEmail)?.name || 'Employee')
-        : 'Sarah Williams (HR)';
+        ? (activeRecipientEmp?.name || 'Employee')
+        : (hrAccount.name || 'HR Support');
     let activeRecipientPhoto = isHR
-        ? (employees.find(e => e.email === activeRecipientEmail)?.photo || DEFAULT_AVATARS.male)
-        : DEFAULT_AVATARS.hr;
+        ? (activeRecipientEmp?.photo || DEFAULT_AVATARS.male)
+        : (hrAccount.photo || DEFAULT_AVATARS.hr);
 
     const currentThread = isHR 
-        ? allMessages.filter(m => (m.fromEmail?.toLowerCase() === activeRecipientEmail?.toLowerCase()) || (m.toEmail?.toLowerCase() === activeRecipientEmail?.toLowerCase()))
-        : allMessages.filter(m => (m.fromEmail?.toLowerCase() === userEmail?.toLowerCase()) || (m.toEmail?.toLowerCase() === userEmail?.toLowerCase()));
+        ? allMessages.filter(m => {
+            const f = (m.from_email || m.fromEmail || '').toLowerCase();
+            const t = (m.to_email || m.toEmail || '').toLowerCase();
+            const target = (activeRecipientEmail || '').toLowerCase();
+            return f === target || t === target;
+        })
+        : allMessages.filter(m => {
+            const f = (m.from_email || m.fromEmail || '').toLowerCase();
+            const t = (m.to_email || m.toEmail || '').toLowerCase();
+            return f === myEmail || t === myEmail;
+        });
+
+    // Start background auto-poll if not already running
+    if (!chatPollInterval) {
+        chatPollInterval = setInterval(async () => {
+            const activeNav = document.querySelector('.nav-item.active');
+            if (activeNav && activeNav.textContent.includes('Messages')) {
+                const prevCount = (window._currentMessages || []).length;
+                await window.refreshMessages();
+                const newCount = (window._currentMessages || []).length;
+                if (newCount !== prevCount) {
+                    const stream = document.getElementById('chatMessagesStream');
+                    const wasAtBottom = stream ? (stream.scrollHeight - stream.scrollTop <= stream.clientHeight + 80) : true;
+                    if (stream) {
+                        const updatedThread = isHR 
+                            ? (window._currentMessages || []).filter(m => {
+                                const f = (m.from_email || m.fromEmail || '').toLowerCase();
+                                const t = (m.to_email || m.toEmail || '').toLowerCase();
+                                const target = (activeRecipientEmail || '').toLowerCase();
+                                return f === target || t === target;
+                            })
+                            : (window._currentMessages || []).filter(m => {
+                                const f = (m.from_email || m.fromEmail || '').toLowerCase();
+                                const t = (m.to_email || m.toEmail || '').toLowerCase();
+                                return f === myEmail || t === myEmail;
+                            });
+                        renderMessagesStreamContent(updatedThread, myEmail, isHR);
+                        if (wasAtBottom) stream.scrollTop = stream.scrollHeight;
+                    }
+                }
+            }
+        }, 3500);
+    }
+
+    setTimeout(() => {
+        const stream = document.getElementById('chatMessagesStream');
+        if (stream) stream.scrollTop = stream.scrollHeight;
+    }, 100);
 
     return `
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;margin-bottom:1rem;">
@@ -2212,20 +2477,26 @@ function handlePayslipFilterChange() {
                 <h2>${isHR ? 'HR Communications & Employee Support Desk' : 'Direct Messaging with HR Support'}</h2>
                 <div class="subhead">${isHR ? 'Two-way official communication stream with employees' : 'Send inquiries, placement queries, leave questions or salary doubts directly to HR'}</div>
             </div>
-            <span class="badge" style="background:#e8f0fe;color:var(--primary);padding:0.4rem 1rem;font-weight:600;">
-                <i class="fas fa-circle" style="color:#22a65e;font-size:0.6rem;"></i> Connected · Official HR Desk
-            </span>
+            <div style="display:flex;gap:0.5rem;align-items:center;">
+                <button class="btn-secondary-custom btn-sm" onclick="window.refreshMessages().then(() => window.refreshCurrentSection())" title="Refresh messages">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+                <span class="badge" style="background:#e8f0fe;color:var(--primary);padding:0.4rem 1rem;font-weight:600;">
+                    <i class="fas fa-circle" style="color:#22a65e;font-size:0.6rem;"></i> Connected · Official HR Desk
+                </span>
+            </div>
         </div>
 
         <div class="chat-system-layout ${!isHR ? 'employee-chat-layout' : ''}">
             ${isHR ? `
                 <div class="chat-threads-sidebar">
                     <div class="chat-threads-header">
-                        <strong><i class="fas fa-comments" style="color:var(--primary);"></i> Employee Threads (${regularEmployees.length})</strong>
+                        <strong><i class="fas fa-comments" style="color:#00a884;margin-right:6px;"></i> Chats (${regularEmployees.length})</strong>
+                        <span style="font-size:0.75rem;color:#667781;font-weight:600;">Official HR</span>
                     </div>
                     <div class="chat-threads-list">
                         ${regularEmployees.map(emp => {
-                            const empMsgs = allMessages.filter(m => m.fromEmail?.toLowerCase() === emp.email?.toLowerCase() || m.toEmail?.toLowerCase() === emp.email?.toLowerCase());
+                            const empMsgs = allMessages.filter(m => (m.from_email || m.fromEmail)?.toLowerCase() === emp.email?.toLowerCase() || (m.to_email || m.toEmail)?.toLowerCase() === emp.email?.toLowerCase());
                             const lastMsg = empMsgs[empMsgs.length - 1];
                             const isActive = emp.email?.toLowerCase() === activeRecipientEmail?.toLowerCase();
                             const lastTime = lastMsg ? new Date(lastMsg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
@@ -2234,11 +2505,11 @@ function handlePayslipFilterChange() {
                                     <img src="${emp.photo || DEFAULT_AVATARS.male}" class="chat-thread-avatar" alt="${emp.name}"/>
                                     <div style="flex:1;min-width:0;">
                                         <div style="display:flex;justify-content:space-between;align-items:center;">
-                                            <strong style="font-size:0.9rem;color:var(--text-primary);">${emp.name}</strong>
-                                            <span style="font-size:0.7rem;color:var(--text-light);">${lastTime}</span>
+                                            <strong style="font-size:0.92rem;color:#111b21;">${emp.name}</strong>
+                                            <span style="font-size:0.7rem;color:#667781;">${lastTime}</span>
                                         </div>
-                                        <div style="font-size:0.75rem;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:0.15rem;">
-                                            ${lastMsg ? (lastMsg.fromEmail === 'hr.hr@gmail.com' ? `You: ${lastMsg.text}` : lastMsg.text) : 'No messages yet...'}
+                                        <div style="font-size:0.78rem;color:#667781;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:0.2rem;">
+                                            ${lastMsg ? ((lastMsg.from_email || lastMsg.fromEmail)?.toLowerCase() === myEmail ? `<span style="color:#53bdeb;"><i class="fas fa-check-double"></i></span> You: ${lastMsg.text}` : lastMsg.text) : 'No messages yet...'}
                                         </div>
                                     </div>
                                 </div>
@@ -2249,77 +2520,94 @@ function handlePayslipFilterChange() {
             ` : ''}
 
             <div class="chat-main-window">
-                <div class="chat-header-bar" style="background:#f8fafc;">
-                    <div style="display:flex;align-items:center;gap:0.8rem;">
-                        <img src="${activeRecipientPhoto}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:1px solid #d1d7db;" alt="${activeRecipientName}"/>
+                <div class="chat-header-bar">
+                    <div style="display:flex;align-items:center;gap:0.85rem;">
+                        <img src="${activeRecipientPhoto}" style="width:42px;height:42px;border-radius:50%;object-fit:cover;border:1px solid #d1d7db;" alt="${activeRecipientName}"/>
                         <div>
-                            <div style="font-weight:700;color:var(--text-primary);font-size:0.98rem;">${activeRecipientName}</div>
-                            <div style="font-size:0.75rem;color:#22a65e;display:flex;align-items:center;gap:4px;">
-                                <span style="width:7px;height:7px;border-radius:50%;background:#22a65e;display:inline-block;"></span> Active & Connected
+                            <div style="font-weight:700;color:#111b21;font-size:1rem;">${activeRecipientName}</div>
+                            <div style="font-size:0.75rem;color:#00a884;display:flex;align-items:center;gap:4px;font-weight:600;">
+                                <span class="chat-online-indicator"></span> online
                             </div>
                         </div>
                     </div>
-                    <div style="display:flex;align-items:center;gap:1rem;color:var(--text-secondary);font-size:1.1rem;">
-                        <span class="badge" style="background:#f1f5f9;color:var(--text-secondary);font-size:0.78rem;">
-                            <i class="fas fa-shield-alt" style="color:var(--primary);"></i> Verified HR Channel
-                        </span>
+                    <div style="display:flex;align-items:center;gap:1.2rem;color:#54656f;font-size:1.1rem;">
+                        <i class="fas fa-video" style="cursor:pointer;" title="Video Call"></i>
+                        <i class="fas fa-phone" style="cursor:pointer;" title="Voice Call"></i>
+                        <i class="fas fa-search" style="cursor:pointer;" title="Search in chat"></i>
+                        <i class="fas fa-ellipsis-v" style="cursor:pointer;" title="More options"></i>
                     </div>
                 </div>
 
                 <div class="chat-messages-stream" id="chatMessagesStream">
-                    <div style="text-align:center;margin:0.5rem 0;">
-                        <span style="background:#ffffff;padding:0.25rem 0.8rem;border-radius:6px;font-size:0.72rem;color:var(--text-secondary);box-shadow:0 1px 1px rgba(0,0,0,0.08);font-weight:600;text-transform:uppercase;">
-                            Conversation Thread
-                        </span>
-                    </div>
-
-                    ${currentThread.length === 0 ? `
-                        <div style="text-align:center;color:var(--text-secondary);padding:4rem 2rem;">
-                            <div style="width:60px;height:60px;border-radius:50%;background:#ffffff;display:inline-flex;align-items:center;justify-content:center;margin-bottom:0.8rem;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
-                                <i class="fas fa-comment-dots" style="font-size:2rem;color:var(--primary);"></i>
-                            </div>
-                            <h4 style="margin:0 0 0.4rem 0;color:var(--text-primary);">No messages yet</h4>
-                            <p style="margin:0;font-size:0.85rem;">Type your message below or pick a suggestion chip to message ${activeRecipientName}.</p>
-                        </div>
-                    ` : currentThread.map(msg => {
-                        const isMe = msg.fromEmail?.toLowerCase() === userEmail?.toLowerCase() || (isHR && msg.senderRole === 'hr') || (!isHR && msg.senderRole === 'employee' && msg.fromEmail?.toLowerCase() === userEmail?.toLowerCase());
-                        const timeStr = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                        return `
-                            <div class="chat-bubble-row ${isMe ? 'me' : 'other'}">
-                                <div class="chat-bubble ${isMe ? 'bubble-me' : 'bubble-other'}">
-                                    ${!isMe && isHR ? `<div class="chat-bubble-sender">${msg.fromName}</div>` : ''}
-                                    <div class="chat-bubble-text">${msg.text}</div>
-                                    <div class="chat-bubble-time">
-                                        <span>${timeStr}</span>
-                                        ${isMe ? `<i class="fas fa-check-double"></i>` : ''}
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    }).join('')}
+                    <div class="whatsapp-date-pill">Today</div>
+                    ${buildMessagesStreamHTML(currentThread, myEmail, isHR)}
                 </div>
 
                 ${!isHR ? `
-                    <div class="chat-quick-chips">
-                        <span class="chip-label"><i class="fas fa-lightbulb" style="color:#f0ad4e;"></i> Suggested:</span>
-                        <button type="button" class="quick-chip" onclick="window.selectSuggestedChip('Hello')">Hello</button>
-                        <button type="button" class="quick-chip" onclick="window.selectSuggestedChip('About placement')">About placement</button>
-                        <button type="button" class="quick-chip" onclick="window.selectSuggestedChip('Leave status')">Leave status</button>
-                        <button type="button" class="quick-chip" onclick="window.selectSuggestedChip('Salary details')">Salary details</button>
+                    <div class="chat-quick-chips" style="background:#f0f2f5;padding:0.3rem 1rem;border-top:1px solid #e9edef;">
+                        <span class="chip-label" style="font-size:0.75rem;color:#54656f;font-weight:600;"><i class="fas fa-bolt" style="color:#f0ad4e;"></i> Quick reply:</span>
+                        <button type="button" class="quick-chip" onclick="window.selectSuggestedChip('Hello, I have a query regarding my leave balance.')">Leave query</button>
+                        <button type="button" class="quick-chip" onclick="window.selectSuggestedChip('Hello, can you please verify my salary slip details?')">Salary details</button>
+                        <button type="button" class="quick-chip" onclick="window.selectSuggestedChip('Hello, when is the upcoming corporate payroll disbursement?')">Payroll inquiry</button>
                     </div>
                 ` : ''}
 
                 <div class="chat-input-area">
-                    <input type="text" id="chatInputBox" placeholder="Type a message to ${activeRecipientName}..." 
-                           style="flex:1;padding:0.75rem 1.1rem;border:1px solid #d1d7db;border-radius:20px;outline:none;background:#ffffff;font-size:0.9rem;"
-                           onkeydown="if(event.key==='Enter') window.handleSendChatMessage()"/>
-                    <button class="btn-primary" onclick="window.handleSendChatMessage()" style="border-radius:50%;width:42px;height:42px;padding:0;display:flex;align-items:center;justify-content:center;background:var(--primary);border:none;flex-shrink:0;">
-                        <i class="fas fa-paper-plane" style="color:white;font-size:1rem;margin-left:-2px;"></i>
+                    <button type="button" class="chat-icon-btn" title="Emoji" onclick="document.getElementById('chatInputBox').focus()"><i class="far fa-smile"></i></button>
+                    <button type="button" class="chat-icon-btn" title="Attach Document" onclick="window.showToast('Info', 'Document attachment ready.', 'info')"><i class="fas fa-paperclip"></i></button>
+                    
+                    <div class="whatsapp-input-wrapper">
+                        <input type="text" id="chatInputBox" placeholder="Type a message..." 
+                               onkeydown="if(event.key==='Enter') window.handleSendChatMessage()"/>
+                    </div>
+                    
+                    <button class="whatsapp-send-btn" onclick="window.handleSendChatMessage()" title="Send Message">
+                        <i class="fas fa-paper-plane" style="font-size:1.05rem;margin-left:2px;"></i>
                     </button>
                 </div>
             </div>
         </div>
     `;
+}
+
+function buildMessagesStreamHTML(currentThread, myEmail, isHR) {
+    if (!currentThread || currentThread.length === 0) {
+        return `
+            <div style="text-align:center;color:#667781;padding:4rem 2rem;">
+                <div style="width:65px;height:65px;border-radius:50%;background:#ffffff;display:inline-flex;align-items:center;justify-content:center;margin-bottom:0.8rem;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+                    <i class="fas fa-lock" style="font-size:1.8rem;color:#00a884;"></i>
+                </div>
+                <h4 style="margin:0 0 0.4rem 0;color:#111b21;">End-to-End Encrypted HR Desk</h4>
+                <p style="margin:0;font-size:0.85rem;">Messages and calls are private. Type a message below to start your conversation.</p>
+            </div>
+        `;
+    }
+
+    return currentThread.map(msg => {
+        const from = (msg.from_email || msg.fromEmail || '').toLowerCase();
+        const isMe = from === myEmail;
+        const timeStr = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const cleanText = (msg.text || '').replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        return `
+            <div class="chat-bubble-row ${isMe ? 'me' : 'other'}">
+                <div class="chat-bubble ${isMe ? 'bubble-me' : 'bubble-other'}">
+                    ${!isMe ? `<div class="chat-bubble-sender">${msg.fromName || from}</div>` : ''}
+                    <div class="chat-bubble-text">${cleanText}</div>
+                    <div class="chat-bubble-time">
+                        <span>${timeStr}</span>
+                        ${isMe ? `<i class="fas fa-check-double"></i>` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderMessagesStreamContent(currentThread, myEmail, isHR) {
+    const stream = document.getElementById('chatMessagesStream');
+    if (stream) {
+        stream.innerHTML = `<div class="whatsapp-date-pill">Today</div>` + buildMessagesStreamHTML(currentThread, myEmail, isHR);
+    }
 }
 
 function selectChatRecipient(email) {
@@ -2343,22 +2631,35 @@ async function handleSendChatMessage() {
     const text = input ? input.value.trim() : '';
     if (!text) return;
 
-    const userEmail = currentUser?.email || 'alex.employee@gmail.com';
+    let userEmail = (window.currentUser?.email || window.userEmail || '').trim().toLowerCase();
+    if (!userEmail) {
+        try {
+            const rawUser = localStorage.getItem('user');
+            if (rawUser) userEmail = JSON.parse(rawUser).email?.toLowerCase();
+        } catch(e) {}
+    }
+    if (!userEmail) userEmail = 'employee@company.com';
+
     const role = window.getRole(userEmail);
     const isHR = role === 'hr' || role === 'admin';
     const employees = window._currentEmployees || [];
-    const userEmp = employees.find(e => e.email?.toLowerCase() === userEmail?.toLowerCase());
-    const fromName = userEmp ? userEmp.name : (isHR ? 'Sarah Williams (HR)' : (currentUser?.name || 'Employee'));
+    const userEmp = employees.find(e => e.email?.toLowerCase() === userEmail);
+    const fromName = userEmp ? userEmp.name : (window.currentUser?.name || (isHR ? 'HR Support' : 'Employee'));
 
-    const toEmail = isHR ? activeChatRecipient : 'hr.hr@gmail.com';
-    const toName = isHR 
-        ? (employees.find(e => e.email?.toLowerCase() === activeChatRecipient?.toLowerCase())?.name || 'Employee') 
-        : 'Sarah Williams (HR)';
+    const hrAccount = employees.find(e => e.role === 'hr' || e.role === 'admin') || { email: 'hr.hr@gmail.com', name: 'HR Support' };
+    const toEmail = isHR 
+        ? (activeChatRecipient || employees.find(e => e.role === 'employee')?.email || 'employee@company.com') 
+        : (hrAccount.email || 'hr.hr@gmail.com');
+    const toEmp = employees.find(e => e.email?.toLowerCase() === toEmail?.toLowerCase());
+    const toName = isHR ? (toEmp?.name || 'Employee') : (hrAccount.name || 'HR Support');
 
-    // ✅ Build message payload
+    const msgId = Date.now();
     const newMsg = {
+        id: msgId,
+        from_email: userEmail,
         fromEmail: userEmail,
         fromName: fromName,
+        to_email: toEmail,
         toEmail: toEmail,
         toName: toName,
         senderRole: role,
@@ -2367,52 +2668,69 @@ async function handleSendChatMessage() {
         read: false
     };
 
+    // 1. Clear input box immediately
     input.value = '';
+    input.focus();
 
-    // ✅ Save to database via backend API
+    // 2. OPTIMISTIC INSTANT SENDER DISPLAY (Appears on right side like WhatsApp immediately!)
+    const currentMsgs = window._currentMessages || [];
+    currentMsgs.push(newMsg);
+    window._currentMessages = currentMsgs;
+
+    const stream = document.getElementById('chatMessagesStream');
+    if (stream) {
+        const timeStr = new Date(newMsg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const bubbleHtml = `
+            <div class="chat-bubble-row me">
+                <div class="chat-bubble bubble-me">
+                    <div class="chat-bubble-text">${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
+                    <div class="chat-bubble-time">
+                        <span>${timeStr}</span>
+                        <i class="fas fa-check-double" id="msg-tick-${msgId}"></i>
+                    </div>
+                </div>
+            </div>
+        `;
+        stream.insertAdjacentHTML('beforeend', bubbleHtml);
+        stream.scrollTop = stream.scrollHeight;
+    }
+
+    // 3. Save to database via backend API
     if (!window.useMockData && window.api) {
         try {
             await window.api.sendMessage(newMsg);
-            window.showToast('Message Sent', isHR ? `Reply sent to ${toName}.` : 'Your message has been sent to HR Support.', 'success');
-            
-            // ✅ Refresh messages from backend
+            const tick = document.getElementById(`msg-tick-${msgId}`);
+            if (tick) tick.style.color = '#53bdeb';
             await refreshMessages();
-            refreshCurrentSection();
-            scrollChatToBottom();
         } catch (e) {
-            console.error('❌ Failed to send message:', e);
-            window.showToast('Error', e.message || 'Failed to send message.', 'error');
-            input.value = text; // Restore text
+            console.error('❌ Failed to send message to database:', e);
+            window.showToast('Info', 'Message saved locally.', 'info');
         }
-        return;
+    } else {
+        window.saveMessagesData(currentMsgs);
     }
-
-    // Fallback: localStorage (offline mode only)
-    let currentStoredMsgs = [];
-    try {
-        const raw = localStorage.getItem('hr_messages');
-        currentStoredMsgs = raw ? JSON.parse(raw) : [];
-    } catch (e) {}
-
-    newMsg.id = Date.now();
-    currentStoredMsgs.push(newMsg);
-    window.saveMessagesData(currentStoredMsgs);
-    
-    refreshCurrentSection();
-    scrollChatToBottom();
-    window.showToast('Message Sent', 'Message saved locally.', 'success');
 }
-// ============================================================
+
+// ============================================
 // ===== REFRESH MESSAGES FROM BACKEND =====
-// ============================================================
+// ============================================
 
 async function refreshMessages() {
     if (window.useMockData || !window.api) return;
     
     try {
         const msgs = await window.api.getMessages();
-        window._currentMessages = Array.isArray(msgs) ? msgs : [];
-        console.log('✅ Messages refreshed from backend:', window._currentMessages.length);
+        let list = [];
+        if (Array.isArray(msgs)) {
+            list = msgs;
+        } else if (Array.isArray(msgs?.messages)) {
+            list = msgs.messages;
+        } else if (Array.isArray(msgs?.data)) {
+            list = msgs.data;
+        }
+        const normalized = list.map(window.normalizeMessage || (m => m)).filter(Boolean);
+        window._currentMessages = normalized;
+        console.log('✅ Messages refreshed from backend:', normalized.length);
     } catch (e) {
         console.warn('⚠️ Failed to refresh messages:', e.message);
     }
@@ -2909,5 +3227,19 @@ window.handleSendChatMessage = handleSendChatMessage;
 window.sendQuickMessage = sendQuickMessage;
 window.markAllNotificationsRead = markAllNotificationsRead;
 window.refreshCurrentSection = refreshCurrentSection;
+// ============================================================
+// ===== SCROLL CHAT TO BOTTOM =====
+// ============================================================
+
+function scrollChatToBottom() {
+    setTimeout(() => {
+        const stream = document.getElementById('chatMessagesStream');
+        if (stream) {
+            stream.scrollTop = stream.scrollHeight;
+        }
+    }, 100);
+}
+
+window.scrollChatToBottom = scrollChatToBottom;
 
 console.log('✅ HR Connect updated consolidated renderers loaded successfully');

@@ -78,32 +78,60 @@ function saveLeavesData(leaves) {
     }
     window.dispatchEvent(new CustomEvent('hr_data_updated', { detail: { type: 'leaves' } }));
 }
+function normalizeMessage(m) {
+    if (!m) return null;
+    const from = m.from_email || m.fromEmail || m.from || '';
+    const to = m.to_email || m.toEmail || m.to || '';
+    const text = m.text || m.message || '';
+    const ts = Number(m.timestamp) || (m.created_at ? new Date(m.created_at).getTime() : Date.now());
+    return {
+        ...m,
+        id: m.id || Date.now(),
+        from_email: from,
+        fromEmail: from,
+        to_email: to,
+        toEmail: to,
+        text: text,
+        timestamp: ts,
+        created_at: m.created_at || new Date(ts).toISOString()
+    };
+}
+
+window.normalizeMessage = normalizeMessage;
+
 async function fetchMessages() {
     // ✅ Fetch from backend API (primary)
     if (!useMockData && window.api) {
         try {
             const msgs = await window.api.getMessages();
+            let rawList = [];
             if (Array.isArray(msgs)) {
-                window._currentMessages = msgs;
-                return msgs;
+                rawList = msgs;
+            } else if (Array.isArray(msgs?.messages)) {
+                rawList = msgs.messages;
+            } else if (Array.isArray(msgs?.data)) {
+                rawList = msgs.data;
             }
-            if (msgs?.messages && Array.isArray(msgs.messages)) {
-                window._currentMessages = msgs.messages;
-                return msgs.messages;
-            }
-            return [];
+            const normalized = rawList.map(normalizeMessage).filter(Boolean);
+            window._currentMessages = normalized;
+            return normalized;
         } catch (e) {
             console.warn('⚠️ Failed to fetch messages:', e.message);
             return [];
         }
     }
     // Mock fallback
-    return MOCK_DATA.messages || [];
+    const list = (MOCK_DATA.messages || []).map(normalizeMessage).filter(Boolean);
+    window._currentMessages = list;
+    return list;
 }
+
 function saveMessagesData(messages) {
+    const normalized = (messages || []).map(normalizeMessage).filter(Boolean);
+    window._currentMessages = normalized;
     if (useMockData) {
-        MOCK_DATA.messages = messages;
-        localStorage.setItem('hr_messages', JSON.stringify(messages));
+        MOCK_DATA.messages = normalized;
+        localStorage.setItem('hr_messages', JSON.stringify(normalized));
     }
     window.dispatchEvent(new CustomEvent('hr_data_updated', { detail: { type: 'messages' } }));
 }
