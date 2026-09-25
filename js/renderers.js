@@ -8,6 +8,22 @@ let payslipFilterYear = '2026';
 let currentLeaveActionId = null;
 let currentLeaveActionType = null;
 
+function getNameFromEmail(email) {
+    if (typeof window !== 'undefined' && typeof window.getNameFromEmail === 'function') {
+        return window.getNameFromEmail(email);
+    }
+    if (!email) return 'User';
+    const clean = String(email).split('@')[0];
+    return clean.split('.').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
+}
+
+var DEFAULT_AVATARS = (typeof DEFAULT_AVATARS !== 'undefined' ? DEFAULT_AVATARS : (typeof window !== 'undefined' && window.DEFAULT_AVATARS ? window.DEFAULT_AVATARS : {
+    male: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+    female: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
+    alex: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150',
+    hr: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150'
+}));
+
 // ============================================================
 // ===== 1. DASHBOARD RENDERERS =====
 // ============================================================
@@ -2380,43 +2396,76 @@ function handlePayslipFilterChange() {
 }
 
 // ============================================================
-// ===== 6. TWO-WAY MESSAGING (REAL-TIME CHAT) =====
+// ===== 6. CORPORATE HR HELPDESK & TWO-WAY MESSAGING =====
 // ============================================================
 
+activeChatRecipient = 'alex.employee@gmail.com';
+let activeDeptThreadFilter = 'All';
+let currentChatSearchQuery = '';
+let employeeThreadSearchQuery = '';
 
-let chatPollInterval = null;
+function getDynamicGreeting(name, role) {
+    const hour = new Date().getHours();
+    let timeGreeting = 'Hello';
+    if (hour >= 5 && hour < 12) timeGreeting = 'Good morning';
+    else if (hour >= 12 && hour < 17) timeGreeting = 'Good afternoon';
+    else if (hour >= 17 && hour < 22) timeGreeting = 'Good evening';
+
+    const roleNorm = (role || '').toLowerCase();
+    const cleanName = name || (roleNorm === 'hr' ? 'HR Manager' : roleNorm === 'admin' ? 'Administrator' : 'Employee');
+    const isHR = roleNorm === 'hr' || roleNorm === 'admin';
+    return {
+        greeting: `${timeGreeting}, ${cleanName}!`,
+        subtext: isHR 
+            ? 'Corporate HR Communications & Employee Helpdesk Portal. Manage incoming employee inquiries, review ticket correspondence, and communicate directly with staff across departments.'
+            : 'Welcome to your dedicated HR Helpdesk channel. Connect directly with HR Operations for leave approvals, salary verification, corporate benefits, tax deductions, or policy inquiries.'
+    };
+}
+
+window.getDynamicGreeting = getDynamicGreeting;
 
 function renderMessages(userEmail, role) {
-    const isHR = role === 'hr' || role === 'admin';
+    const roleNorm = (role || '').toLowerCase();
+    const isHR = roleNorm === 'hr' || roleNorm === 'admin';
     
-    // Resolve logged in email reliably
+    // Resolve logged in email and identity reliably
     const myEmail = (userEmail || window.currentUser?.email || window.userEmail || '').trim().toLowerCase();
-    
-    // Use messages from backend
-    let allMessages = (window._currentMessages || []).map(window.normalizeMessage || (m => m)).filter(Boolean);
     const employees = window._currentEmployees || [];
-    const regularEmployees = employees.filter(e => e.role === 'employee');
-    const hrAccount = employees.find(e => e.role === 'hr' || e.role === 'admin') || { email: 'hr.hr@gmail.com', name: 'HR Support' };
+    const myEmp = employees.find(e => e.email?.toLowerCase() === myEmail) || window.currentUser?.empData;
+    const myName = myEmp ? myEmp.name : (window.currentUser?.name || getNameFromEmail(myEmail));
+    const myAvatar = myEmp?.photo || (isHR ? DEFAULT_AVATARS.hr : DEFAULT_AVATARS.alex);
 
-    // In HR view, sort employees by most recent message
+    const greetingInfo = getDynamicGreeting(myName, role);
+    const regularEmployees = employees.filter(e => e.role === 'employee');
+    const hrAccount = employees.find(e => e.role === 'hr' || e.role === 'admin') || { 
+        id: 4, 
+        name: 'Sarah Williams', 
+        email: 'hr.hr@gmail.com', 
+        designation: 'HR Operations Manager', 
+        department: 'HR',
+        photo: DEFAULT_AVATARS.hr 
+    };
+
+    // Ensure active chat recipient is set for HR
     if (isHR && regularEmployees.length > 0) {
-        if (!activeChatRecipient) {
-            const sorted = [...regularEmployees].sort((a, b) => {
-                const aMsgs = allMessages.filter(m => (m.fromEmail || m.from_email)?.toLowerCase() === a.email?.toLowerCase() || (m.toEmail || m.to_email)?.toLowerCase() === a.email?.toLowerCase());
-                const bMsgs = allMessages.filter(m => (m.fromEmail || m.from_email)?.toLowerCase() === b.email?.toLowerCase() || (m.toEmail || m.to_email)?.toLowerCase() === b.email?.toLowerCase());
-                const aTime = aMsgs.length > 0 ? aMsgs[aMsgs.length - 1].timestamp : 0;
-                const bTime = bMsgs.length > 0 ? bMsgs[bMsgs.length - 1].timestamp : 0;
-                return bTime - aTime;
-            });
-            activeChatRecipient = sorted[0]?.email || regularEmployees[0].email;
+        if (!activeChatRecipient || !regularEmployees.some(e => e.email?.toLowerCase() === activeChatRecipient?.toLowerCase())) {
+            activeChatRecipient = regularEmployees[0].email;
         }
     }
+
+    const allMessages = (window._currentMessages || []).map(window.normalizeMessage || (m => m)).filter(Boolean);
 
     let activeRecipientEmail = isHR ? activeChatRecipient : (hrAccount.email || 'hr.hr@gmail.com');
     let activeRecipientEmp = employees.find(e => e.email?.toLowerCase() === activeRecipientEmail?.toLowerCase());
     let activeRecipientName = isHR 
         ? (activeRecipientEmp?.name || 'Employee')
-        : (hrAccount.name || 'HR Support');
+        : (hrAccount.name || 'Sarah Williams');
+    let activeRecipientDesignation = isHR
+        ? (activeRecipientEmp?.designation || 'Staff Member')
+        : (hrAccount.designation || 'HR Operations Manager');
+    let activeRecipientDept = isHR
+        ? (activeRecipientEmp?.department || 'IT')
+        : 'HR Operations';
     let activeRecipientPhoto = isHR
         ? (activeRecipientEmp?.photo || DEFAULT_AVATARS.male)
         : (hrAccount.photo || DEFAULT_AVATARS.hr);
@@ -2434,202 +2483,421 @@ function renderMessages(userEmail, role) {
             return f === myEmail || t === myEmail;
         });
 
-    // Start background auto-poll if not already running
-    if (!chatPollInterval) {
-        chatPollInterval = setInterval(async () => {
-            const activeNav = document.querySelector('.nav-item.active');
-            if (activeNav && activeNav.textContent.includes('Messages')) {
-                const prevCount = (window._currentMessages || []).length;
-                await window.refreshMessages();
-                const newCount = (window._currentMessages || []).length;
-                if (newCount !== prevCount) {
-                    const stream = document.getElementById('chatMessagesStream');
-                    const wasAtBottom = stream ? (stream.scrollHeight - stream.scrollTop <= stream.clientHeight + 80) : true;
-                    if (stream) {
-                        const updatedThread = isHR 
-                            ? (window._currentMessages || []).filter(m => {
-                                const f = (m.from_email || m.fromEmail || '').toLowerCase();
-                                const t = (m.to_email || m.toEmail || '').toLowerCase();
-                                const target = (activeRecipientEmail || '').toLowerCase();
-                                return f === target || t === target;
-                            })
-                            : (window._currentMessages || []).filter(m => {
-                                const f = (m.from_email || m.fromEmail || '').toLowerCase();
-                                const t = (m.to_email || m.toEmail || '').toLowerCase();
-                                return f === myEmail || t === myEmail;
-                            });
-                        renderMessagesStreamContent(updatedThread, myEmail, isHR);
-                        if (wasAtBottom) stream.scrollTop = stream.scrollHeight;
-                    }
-                }
-            }
-        }, 3500);
-    }
-
+    // Auto scroll stream to bottom
     setTimeout(() => {
         const stream = document.getElementById('chatMessagesStream');
         if (stream) stream.scrollTop = stream.scrollHeight;
-    }, 100);
+    }, 80);
+
+    const nowFormatted = new Date().toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 
     return `
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;margin-bottom:1rem;">
-            <div>
-                <h2>${isHR ? 'HR Communications & Employee Support Desk' : 'Direct Messaging with HR Support'}</h2>
-                <div class="subhead">${isHR ? 'Two-way official communication stream with employees' : 'Send inquiries, placement queries, leave questions or salary doubts directly to HR'}</div>
-            </div>
-            <div style="display:flex;gap:0.5rem;align-items:center;">
-                <button class="btn-secondary-custom btn-sm" onclick="window.refreshMessages().then(() => window.refreshCurrentSection())" title="Refresh messages">
-                    <i class="fas fa-sync-alt"></i> Refresh
-                </button>
-                <span class="badge" style="background:#e8f0fe;color:var(--primary);padding:0.4rem 1rem;font-weight:600;">
-                    <i class="fas fa-circle" style="color:#22a65e;font-size:0.6rem;"></i> Connected · Official HR Desk
-                </span>
-            </div>
-        </div>
-
-        <div class="chat-system-layout ${!isHR ? 'employee-chat-layout' : ''}">
-            ${isHR ? `
-                <div class="chat-threads-sidebar">
-                    <div class="chat-threads-header">
-                        <strong><i class="fas fa-comments" style="color:#00a884;margin-right:6px;"></i> Chats (${regularEmployees.length})</strong>
-                        <span style="font-size:0.75rem;color:#667781;font-weight:600;">Official HR</span>
-                    </div>
-                    <div class="chat-threads-list">
-                        ${regularEmployees.map(emp => {
-                            const empMsgs = allMessages.filter(m => (m.from_email || m.fromEmail)?.toLowerCase() === emp.email?.toLowerCase() || (m.to_email || m.toEmail)?.toLowerCase() === emp.email?.toLowerCase());
-                            const lastMsg = empMsgs[empMsgs.length - 1];
-                            const isActive = emp.email?.toLowerCase() === activeRecipientEmail?.toLowerCase();
-                            const lastTime = lastMsg ? new Date(lastMsg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-                            return `
-                                <div class="chat-thread-item ${isActive ? 'active' : ''}" onclick="window.selectChatRecipient('${emp.email}')">
-                                    <img src="${emp.photo || DEFAULT_AVATARS.male}" class="chat-thread-avatar" alt="${emp.name}"/>
-                                    <div style="flex:1;min-width:0;">
-                                        <div style="display:flex;justify-content:space-between;align-items:center;">
-                                            <strong style="font-size:0.92rem;color:#111b21;">${emp.name}</strong>
-                                            <span style="font-size:0.7rem;color:#667781;">${lastTime}</span>
-                                        </div>
-                                        <div style="font-size:0.78rem;color:#667781;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:0.2rem;">
-                                            ${lastMsg ? ((lastMsg.from_email || lastMsg.fromEmail)?.toLowerCase() === myEmail ? `<span style="color:#53bdeb;"><i class="fas fa-check-double"></i></span> You: ${lastMsg.text}` : lastMsg.text) : 'No messages yet...'}
-                                        </div>
-                                    </div>
-                                </div>
-                            `;
-                        }).join('')}
+        <div class="corp-messaging-wrapper">
+            <!-- 1. Dynamic Greeting & Status Banner -->
+            <div class="corp-greeting-banner">
+                <div class="corp-greeting-left">
+                    <img src="${myAvatar}" class="corp-greeting-avatar" alt="${myName}"/>
+                    <div>
+                        <h2 class="corp-greeting-title">${greetingInfo.greeting}</h2>
+                        <div class="corp-greeting-subtext">${greetingInfo.subtext}</div>
                     </div>
                 </div>
-            ` : ''}
+                <div class="corp-greeting-badges">
+                    <span class="corp-meta-pill"><i class="fas fa-calendar-day"></i> ${nowFormatted}</span>
+                    <span class="corp-meta-pill"><i class="fas fa-shield-alt"></i> ${isHR ? 'Official HR Helpdesk' : 'Direct HR Channel'}</span>
+                </div>
+            </div>
 
-            <div class="chat-main-window">
-                <div class="chat-header-bar">
-                    <div style="display:flex;align-items:center;gap:0.85rem;">
-                        <img src="${activeRecipientPhoto}" style="width:42px;height:42px;border-radius:50%;object-fit:cover;border:1px solid #d1d7db;" alt="${activeRecipientName}"/>
-                        <div>
-                            <div style="font-weight:700;color:#111b21;font-size:1rem;">${activeRecipientName}</div>
-                            <div style="font-size:0.75rem;color:#00a884;display:flex;align-items:center;gap:4px;font-weight:600;">
-                                <span class="chat-online-indicator"></span> online
+            <!-- 2. Main Two-Column Corporate Layout -->
+            <div class="corp-messaging-grid ${!isHR ? 'employee-view' : ''}">
+                ${isHR ? renderHRThreadsSidebar(regularEmployees, allMessages, activeRecipientEmail) : renderEmployeeHelpdeskInfoPanel(hrAccount)}
+
+                <!-- 3. Right: Main Communication Window -->
+                <div class="corp-chat-window">
+                    <!-- Chat Header Bar -->
+                    <div class="corp-chat-header">
+                        <div class="corp-recipient-info">
+                            <img src="${activeRecipientPhoto}" class="corp-recipient-avatar" alt="${activeRecipientName}"/>
+                            <div>
+                                <div class="corp-recipient-name">${activeRecipientName}</div>
+                                <div class="corp-recipient-sub">
+                                    <span class="corp-dept-tag">${activeRecipientDept}</span>
+                                    <span>${activeRecipientDesignation}</span>
+                                    <span>•</span>
+                                    <span style="color:#22c55e;font-weight:600;display:inline-flex;align-items:center;gap:4px;">
+                                        <span class="corp-online-dot"></span> Active Now
+                                    </span>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <div style="display:flex;align-items:center;gap:1.2rem;color:#54656f;font-size:1.1rem;">
-                        <i class="fas fa-video" style="cursor:pointer;" title="Video Call"></i>
-                        <i class="fas fa-phone" style="cursor:pointer;" title="Voice Call"></i>
-                        <i class="fas fa-search" style="cursor:pointer;" title="Search in chat"></i>
-                        <i class="fas fa-ellipsis-v" style="cursor:pointer;" title="More options"></i>
-                    </div>
-                </div>
 
-                <div class="chat-messages-stream" id="chatMessagesStream">
-                    <div class="whatsapp-date-pill">Today</div>
-                    ${buildMessagesStreamHTML(currentThread, myEmail, isHR)}
-                </div>
-
-                ${!isHR ? `
-                    <div class="chat-quick-chips" style="background:#f0f2f5;padding:0.3rem 1rem;border-top:1px solid #e9edef;">
-                        <span class="chip-label" style="font-size:0.75rem;color:#54656f;font-weight:600;"><i class="fas fa-bolt" style="color:#f0ad4e;"></i> Quick reply:</span>
-                        <button type="button" class="quick-chip" onclick="window.selectSuggestedChip('Hello, I have a query regarding my leave balance.')">Leave query</button>
-                        <button type="button" class="quick-chip" onclick="window.selectSuggestedChip('Hello, can you please verify my salary slip details?')">Salary details</button>
-                        <button type="button" class="quick-chip" onclick="window.selectSuggestedChip('Hello, when is the upcoming corporate payroll disbursement?')">Payroll inquiry</button>
+                        <div class="corp-chat-actions">
+                            <button type="button" class="corp-btn-action" onclick="window.toggleInChatSearch()" title="Search in conversation">
+                                <i class="fas fa-search"></i> <span>Search</span>
+                            </button>
+                            <button type="button" class="corp-btn-action" onclick="window.exportChatTranscript()" title="Download official conversation record">
+                                <i class="fas fa-file-arrow-down"></i> <span>Export Transcript</span>
+                            </button>
+                            <button type="button" class="corp-btn-action" onclick="window.refreshMessagesStream()" title="Refresh thread">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                        </div>
                     </div>
-                ` : ''}
 
-                <div class="chat-input-area">
-                    <button type="button" class="chat-icon-btn" title="Emoji" onclick="document.getElementById('chatInputBox').focus()"><i class="far fa-smile"></i></button>
-                    <button type="button" class="chat-icon-btn" title="Attach Document" onclick="window.showToast('Info', 'Document attachment ready.', 'info')"><i class="fas fa-paperclip"></i></button>
-                    
-                    <div class="whatsapp-input-wrapper">
-                        <input type="text" id="chatInputBox" placeholder="Type a message..." 
-                               onkeydown="if(event.key==='Enter') window.handleSendChatMessage()"/>
+                    <!-- Expandable In-Chat Search Bar -->
+                    <div class="corp-inchat-search-container" id="corpInChatSearchWrapper" style="display:none;">
+                        <i class="fas fa-filter" style="color:var(--primary);"></i>
+                        <input type="text" id="corpInChatSearchInput" placeholder="Filter conversation by message text or category..." 
+                               oninput="window.searchInCurrentChat(this.value)"/>
+                        <button type="button" class="corp-btn-action" onclick="window.clearInChatSearch()" style="padding:0.25rem 0.6rem;font-size:0.75rem;">Clear</button>
                     </div>
-                    
-                    <button class="whatsapp-send-btn" onclick="window.handleSendChatMessage()" title="Send Message">
-                        <i class="fas fa-paper-plane" style="font-size:1.05rem;margin-left:2px;"></i>
-                    </button>
+
+                    <!-- Messages Stream Area -->
+                    <div class="corp-messages-stream" id="chatMessagesStream">
+                        ${buildCorporateMessagesStreamHTML(currentThread, myEmail, isHR, currentChatSearchQuery)}
+                    </div>
+
+                    <!-- Quick Inquiry / Response Chips -->
+                    <div class="corp-quick-chips-wrapper">
+                        <span class="corp-chip-label"><i class="fas fa-bolt" style="color:#f59e0b;"></i> ${isHR ? 'Quick Replies:' : 'Common Topics:'}</span>
+                        ${isHR ? `
+                            <button type="button" class="corp-quick-chip" onclick="window.selectSuggestedChip('Hello, your leave request has been reviewed and approved by HR. Your remaining balance is now updated.', 'Leave & Attendance')">
+                                <i class="fas fa-check-circle" style="color:#22c55e;"></i> Leave Approved
+                            </button>
+                            <button type="button" class="corp-quick-chip" onclick="window.selectSuggestedChip('Your salary payslip with itemized allowance and deduction breakdown is available under My Payslips.', 'Payroll & Compensation')">
+                                <i class="fas fa-file-invoice" style="color:#1a6dff;"></i> Payslip Ready
+                            </button>
+                            <button type="button" class="corp-quick-chip" onclick="window.selectSuggestedChip('Your statutory documents and employee profile record have been verified by HR compliance.', 'General Inquiry')">
+                                <i class="fas fa-id-card" style="color:#8b5cf6;"></i> Profile Verified
+                            </button>
+                            <button type="button" class="corp-quick-chip" onclick="window.selectSuggestedChip('Your shift details and work-from-home schedule have been confirmed and logged.', 'Leave & Attendance')">
+                                <i class="fas fa-calendar-check" style="color:#06b6d4;"></i> Shift Confirmed
+                            </button>
+                        ` : `
+                            <button type="button" class="corp-quick-chip" onclick="window.selectSuggestedChip('Hello HR, could you please clarify my available Casual and Earned leave balances for this quarter?', 'Leave & Attendance')">
+                                <i class="fas fa-plane-departure" style="color:#1a6dff;"></i> Leave Query
+                            </button>
+                            <button type="button" class="corp-quick-chip" onclick="window.selectSuggestedChip('Hello HR, I have a question regarding the statutory deductions on my recent monthly payslip.', 'Payroll & Compensation')">
+                                <i class="fas fa-calculator" style="color:#22c55e;"></i> Salary & Tax
+                            </button>
+                            <button type="button" class="corp-quick-chip" onclick="window.selectSuggestedChip('Hello HR, I would like to request assistance regarding my Provident Fund (PF) account and UAN details.', 'Benefits & Insurance')">
+                                <i class="fas fa-piggy-bank" style="color:#f59e0b;"></i> PF & UAN Help
+                            </button>
+                            <button type="button" class="corp-quick-chip" onclick="window.selectSuggestedChip('Hello HR, where can I review the corporate medical insurance coverage and hospitalization policy guidelines?', 'Benefits & Insurance')">
+                                <i class="fas fa-heart-pulse" style="color:#ef4444;"></i> Medical Policy
+                            </button>
+                        `}
+                    </div>
+
+                    <!-- Input & Send Area -->
+                    <div class="corp-input-bar">
+                        <div class="corp-input-meta-row">
+                            <span style="font-size:0.76rem;color:var(--text-secondary);font-weight:700;">Inquiry Topic:</span>
+                            <select id="corpChatCategory" class="corp-category-select">
+                                <option value="General Inquiry">General Inquiry</option>
+                                <option value="Leave & Attendance">Leave & Attendance</option>
+                                <option value="Payroll & Compensation">Payroll & Compensation</option>
+                                <option value="Benefits & Insurance">Benefits & Insurance</option>
+                                <option value="Corporate Grievance">Corporate Grievance</option>
+                                <option value="Policy Clarification">Policy Clarification</option>
+                            </select>
+                        </div>
+                        <div class="corp-input-row">
+                            <input type="text" id="corpChatInputBox" placeholder="Type your message here... (Press Enter to send)" 
+                                   onkeydown="if(event.key==='Enter' && !event.shiftKey) { event.preventDefault(); window.handleSendChatMessage(); }"/>
+                            <button type="button" class="btn-corporate-send" onclick="window.handleSendChatMessage()" title="Send Message">
+                                <i class="fas fa-paper-plane"></i> <span>Send Message</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     `;
 }
 
-function buildMessagesStreamHTML(currentThread, myEmail, isHR) {
-    if (!currentThread || currentThread.length === 0) {
-        return `
-            <div style="text-align:center;color:#667781;padding:4rem 2rem;">
-                <div style="width:65px;height:65px;border-radius:50%;background:#ffffff;display:inline-flex;align-items:center;justify-content:center;margin-bottom:0.8rem;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
-                    <i class="fas fa-lock" style="font-size:1.8rem;color:#00a884;"></i>
+// ============================================================
+// ===== SIDEBAR & INFO PANEL RENDERERS =====
+// ============================================================
+
+function renderHRThreadsSidebar(employees, allMessages, activeRecipientEmail) {
+    let filtered = employees;
+    if (activeDeptThreadFilter && activeDeptThreadFilter !== 'All') {
+        filtered = filtered.filter(e => e.department === activeDeptThreadFilter);
+    }
+    if (employeeThreadSearchQuery) {
+        const q = employeeThreadSearchQuery.toLowerCase();
+        filtered = filtered.filter(e => (e.name || '').toLowerCase().includes(q) || (e.email || '').toLowerCase().includes(q) || (e.department || '').toLowerCase().includes(q) || (e.designation || '').toLowerCase().includes(q));
+    }
+
+    const depts = ['All', 'IT', 'Finance', 'Sales', 'Marketing', 'Operations', 'HR'];
+
+    return `
+        <div class="corp-threads-panel">
+            <div class="corp-threads-header">
+                <div class="corp-threads-title">
+                    <span><i class="fas fa-inbox" style="color:var(--primary);margin-right:6px;"></i> Employee Threads</span>
+                    <span class="corp-dept-tag">${filtered.length} active</span>
                 </div>
-                <h4 style="margin:0 0 0.4rem 0;color:#111b21;">End-to-End Encrypted HR Desk</h4>
-                <p style="margin:0;font-size:0.85rem;">Messages and calls are private. Type a message below to start your conversation.</p>
+                <div class="corp-search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" placeholder="Search employees by name, dept..." 
+                           value="${employeeThreadSearchQuery}"
+                           oninput="window.filterEmployeesList(this.value)"/>
+                </div>
+            </div>
+
+            <div class="corp-dept-filter-bar">
+                ${depts.map(d => `
+                    <button type="button" class="corp-dept-tab ${activeDeptThreadFilter === d ? 'active' : ''}" 
+                            onclick="window.filterDeptThreads('${d}')">${d}</button>
+                `).join('')}
+            </div>
+
+            <div class="corp-threads-list">
+                ${filtered.length === 0 ? `
+                    <div style="text-align:center;padding:2.5rem 1rem;color:var(--text-light);font-size:0.85rem;">
+                        <i class="fas fa-users-slash" style="font-size:1.8rem;margin-bottom:0.5rem;display:block;opacity:0.6;"></i>
+                        No employee threads match your filter.
+                    </div>
+                ` : filtered.map(emp => {
+                    const empMsgs = allMessages.filter(m => (m.from_email || m.fromEmail)?.toLowerCase() === emp.email?.toLowerCase() || (m.to_email || m.toEmail)?.toLowerCase() === emp.email?.toLowerCase());
+                    const lastMsg = empMsgs[empMsgs.length - 1];
+                    const isActive = emp.email?.toLowerCase() === activeRecipientEmail?.toLowerCase();
+                    const lastTime = lastMsg ? new Date(lastMsg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                    return `
+                        <div class="corp-thread-card ${isActive ? 'active' : ''}" onclick="window.selectChatRecipient('${emp.email}')">
+                            <img src="${emp.photo || DEFAULT_AVATARS.male}" class="corp-thread-avatar" alt="${emp.name}"/>
+                            <div class="corp-thread-info">
+                                <div class="corp-thread-row1">
+                                    <span class="corp-thread-name">${emp.name}</span>
+                                    <span class="corp-thread-time">${lastTime}</span>
+                                </div>
+                                <div class="corp-thread-row2">
+                                    <span class="corp-thread-snippet">${lastMsg ? lastMsg.text : 'Start official conversation...'}</span>
+                                    <span class="corp-dept-tag">${emp.department || 'Staff'}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        </div>
+    `;
+}
+
+function renderEmployeeHelpdeskInfoPanel(hrAccount) {
+    return `
+        <div class="corp-helpdesk-info-panel">
+            <div class="corp-hr-profile-card">
+                <img src="${hrAccount.photo || DEFAULT_AVATARS.hr}" class="corp-hr-avatar" alt="${hrAccount.name}"/>
+                <div class="corp-hr-name">${hrAccount.name}</div>
+                <div class="corp-hr-role"><i class="fas fa-id-badge"></i> ${hrAccount.designation || 'HR Operations Manager'}</div>
+                
+                <div class="corp-hr-meta-list">
+                    <div><i class="fas fa-envelope"></i> <span>${hrAccount.email}</span></div>
+                    <div><i class="fas fa-building"></i> <span>HR Operations Division</span></div>
+                    <div><i class="fas fa-clock"></i> <span>Mon - Fri: 9:00 AM - 6:00 PM IST</span></div>
+                    <div><i class="fas fa-map-marker-alt"></i> <span>Corporate Towers, Level 4</span></div>
+                </div>
+            </div>
+
+            <div class="corp-sla-box">
+                <div class="corp-sla-title">
+                    <i class="fas fa-shield-check" style="color:#1a6dff;"></i> Helpdesk SLA & Policy
+                </div>
+                <p style="margin:0;line-height:1.4;color:#334155;font-size:0.78rem;">
+                    Official inquiries regarding leave calculations, monthly payslips, statutory deductions, or HR grievance tickets are processed directly by the HR Operations desk with confidential audit tracking.
+                </p>
+            </div>
+        </div>
+    `;
+}
+
+// ============================================================
+// ===== MESSAGES STREAM HTML BUILDER =====
+// ============================================================
+
+function buildCorporateMessagesStreamHTML(currentThread, myEmail, isHR, searchTerm = '') {
+    let list = currentThread || [];
+    if (searchTerm) {
+        const q = searchTerm.toLowerCase();
+        list = list.filter(m => (m.text || '').toLowerCase().includes(q) || (m.category || '').toLowerCase().includes(q) || (m.fromName || '').toLowerCase().includes(q));
+    }
+
+    if (list.length === 0) {
+        return `
+            <div style="text-align:center;padding:4rem 2rem;color:var(--text-secondary);">
+                <div style="width:68px;height:68px;border-radius:50%;background:#ffffff;border:1px solid #e2e8f0;display:inline-flex;align-items:center;justify-content:center;margin-bottom:1rem;box-shadow:0 4px 12px rgba(11,43,74,0.06);">
+                    <i class="fas fa-comments" style="font-size:1.8rem;color:#1a6dff;"></i>
+                </div>
+                <h3 style="margin:0 0 0.5rem 0;color:#0b2b4a;font-weight:800;">Official Corporate Communication Desk</h3>
+                <p style="margin:0 auto;max-width:440px;font-size:0.85rem;line-height:1.5;">
+                    ${searchTerm ? `No messages found matching "${searchTerm}". Click Clear to see all messages.` : `There are no previous messages in this thread. Type an inquiry below or select a quick topic to start conversation.`}
+                </p>
             </div>
         `;
     }
 
-    return currentThread.map(msg => {
+    const todayDivider = `<div class="corp-date-divider">Official Thread · Active Record</div>`;
+
+    const streamHTML = list.map(msg => {
         const from = (msg.from_email || msg.fromEmail || '').toLowerCase();
         const isMe = from === myEmail;
         const timeStr = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const senderLabel = isMe 
+            ? `You (${isHR ? 'HR Manager' : 'Employee'})` 
+            : (msg.fromName || (isHR ? 'Employee' : 'Sarah Williams (HR)'));
         const cleanText = (msg.text || '').replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        const categoryBadge = msg.category ? `<span class="corp-category-badge">${msg.category}</span>` : '';
+
         return `
-            <div class="chat-bubble-row ${isMe ? 'me' : 'other'}">
-                <div class="chat-bubble ${isMe ? 'bubble-me' : 'bubble-other'}">
-                    ${!isMe ? `<div class="chat-bubble-sender">${msg.fromName || from}</div>` : ''}
-                    <div class="chat-bubble-text">${cleanText}</div>
-                    <div class="chat-bubble-time">
+            <div class="corp-msg-row ${isMe ? 'outgoing' : 'incoming'}">
+                <div class="corp-msg-bubble ${isMe ? 'outgoing' : 'incoming'}">
+                    <div class="corp-msg-sender-line">
+                        <span>${senderLabel}</span>
+                        ${categoryBadge}
+                    </div>
+                    <div class="corp-msg-body">${cleanText}</div>
+                    <div class="corp-msg-footer">
                         <span>${timeStr}</span>
-                        ${isMe ? `<i class="fas fa-check-double"></i>` : ''}
                     </div>
                 </div>
             </div>
         `;
     }).join('');
+
+    return todayDivider + streamHTML;
 }
 
-function renderMessagesStreamContent(currentThread, myEmail, isHR) {
+// ============================================================
+// ===== ACTION HANDLERS & EVENT BINDINGS =====
+// ============================================================
+
+function refreshMessagesStream() {
+    let userEmail = (window.currentUser?.email || window.userEmail || '').trim().toLowerCase();
+    const role = window.getRole(userEmail);
+    const isHR = role === 'hr' || role === 'admin';
+    const allMessages = (window._currentMessages || []).map(window.normalizeMessage || (m => m)).filter(Boolean);
+    const hrAccount = (window._currentEmployees || []).find(e => e.role === 'hr' || e.role === 'admin') || { email: 'hr.hr@gmail.com' };
+
+    const activeRecipientEmail = isHR ? activeChatRecipient : (hrAccount.email || 'hr.hr@gmail.com');
+    const currentThread = isHR 
+        ? allMessages.filter(m => {
+            const f = (m.from_email || m.fromEmail || '').toLowerCase();
+            const t = (m.to_email || m.toEmail || '').toLowerCase();
+            const target = (activeRecipientEmail || '').toLowerCase();
+            return f === target || t === target;
+        })
+        : allMessages.filter(m => {
+            const f = (m.from_email || m.fromEmail || '').toLowerCase();
+            const t = (m.to_email || m.toEmail || '').toLowerCase();
+            return f === userEmail || t === userEmail;
+        });
+
     const stream = document.getElementById('chatMessagesStream');
     if (stream) {
-        stream.innerHTML = `<div class="whatsapp-date-pill">Today</div>` + buildMessagesStreamHTML(currentThread, myEmail, isHR);
+        stream.innerHTML = buildCorporateMessagesStreamHTML(currentThread, userEmail, isHR, currentChatSearchQuery);
+        stream.scrollTop = stream.scrollHeight;
     }
 }
 
+window.refreshMessagesStream = refreshMessagesStream;
+
 function selectChatRecipient(email) {
     activeChatRecipient = email;
-    refreshCurrentSection();
-    scrollChatToBottom();
+    currentChatSearchQuery = '';
+    const searchInput = document.getElementById('corpInChatSearchInput');
+    if (searchInput) searchInput.value = '';
+    
+    // Re-render whole messages section cleanly
+    let userEmail = (window.currentUser?.email || window.userEmail || '').trim().toLowerCase();
+    const role = window.getRole(userEmail);
+    const container = document.getElementById('section-messages');
+    if (container) {
+        container.innerHTML = renderMessages(userEmail, role);
+    }
 }
 
-function selectSuggestedChip(text) {
-    const input = document.getElementById('chatInputBox');
+window.selectChatRecipient = selectChatRecipient;
+
+function filterEmployeesList(query) {
+    employeeThreadSearchQuery = query || '';
+    let userEmail = (window.currentUser?.email || window.userEmail || '').trim().toLowerCase();
+    const role = window.getRole(userEmail);
+    const container = document.getElementById('section-messages');
+    if (container) {
+        container.innerHTML = renderMessages(userEmail, role);
+    }
+}
+
+window.filterEmployeesList = filterEmployeesList;
+
+function filterDeptThreads(dept) {
+    activeDeptThreadFilter = dept;
+    let userEmail = (window.currentUser?.email || window.userEmail || '').trim().toLowerCase();
+    const role = window.getRole(userEmail);
+    const container = document.getElementById('section-messages');
+    if (container) {
+        container.innerHTML = renderMessages(userEmail, role);
+    }
+}
+
+window.filterDeptThreads = filterDeptThreads;
+
+function selectSuggestedChip(text, category) {
+    const input = document.getElementById('corpChatInputBox');
     if (input) {
         input.value = text;
         input.focus();
+    }
+    if (category) {
+        const catSelect = document.getElementById('corpChatCategory');
+        if (catSelect) catSelect.value = category;
     }
 }
 
 window.selectSuggestedChip = selectSuggestedChip;
 
-async function handleSendChatMessage() {
-    const input = document.getElementById('chatInputBox');
+function toggleInChatSearch() {
+    const wrapper = document.getElementById('corpInChatSearchWrapper');
+    if (wrapper) {
+        const isHidden = wrapper.style.display === 'none';
+        wrapper.style.display = isHidden ? 'flex' : 'none';
+        if (isHidden) {
+            const inp = document.getElementById('corpInChatSearchInput');
+            if (inp) inp.focus();
+        } else {
+            clearInChatSearch();
+        }
+    }
+}
+
+window.toggleInChatSearch = toggleInChatSearch;
+
+function searchInCurrentChat(query) {
+    currentChatSearchQuery = query || '';
+    refreshMessagesStream();
+}
+
+window.searchInCurrentChat = searchInCurrentChat;
+
+function clearInChatSearch() {
+    currentChatSearchQuery = '';
+    const inp = document.getElementById('corpInChatSearchInput');
+    if (inp) inp.value = '';
+    refreshMessagesStream();
+}
+
+window.clearInChatSearch = clearInChatSearch;
+
+function handleSendChatMessage() {
+    const input = document.getElementById('corpChatInputBox');
     const text = input ? input.value.trim() : '';
     if (!text) return;
+
+    const catSelect = document.getElementById('corpChatCategory');
+    const category = catSelect ? catSelect.value : 'General Inquiry';
 
     let userEmail = (window.currentUser?.email || window.userEmail || '').trim().toLowerCase();
     if (!userEmail) {
@@ -2638,20 +2906,20 @@ async function handleSendChatMessage() {
             if (rawUser) userEmail = JSON.parse(rawUser).email?.toLowerCase();
         } catch(e) {}
     }
-    if (!userEmail) userEmail = 'employee@company.com';
+    if (!userEmail) userEmail = 'alex.employee@gmail.com';
 
     const role = window.getRole(userEmail);
     const isHR = role === 'hr' || role === 'admin';
     const employees = window._currentEmployees || [];
     const userEmp = employees.find(e => e.email?.toLowerCase() === userEmail);
-    const fromName = userEmp ? userEmp.name : (window.currentUser?.name || (isHR ? 'HR Support' : 'Employee'));
+    const fromName = userEmp ? userEmp.name : (window.currentUser?.name || (isHR ? 'Sarah Williams' : 'Alex Johnson'));
 
-    const hrAccount = employees.find(e => e.role === 'hr' || e.role === 'admin') || { email: 'hr.hr@gmail.com', name: 'HR Support' };
+    const hrAccount = employees.find(e => e.role === 'hr' || e.role === 'admin') || { email: 'hr.hr@gmail.com', name: 'Sarah Williams' };
     const toEmail = isHR 
-        ? (activeChatRecipient || employees.find(e => e.role === 'employee')?.email || 'employee@company.com') 
+        ? (activeChatRecipient || employees.find(e => e.role === 'employee')?.email || 'alex.employee@gmail.com') 
         : (hrAccount.email || 'hr.hr@gmail.com');
     const toEmp = employees.find(e => e.email?.toLowerCase() === toEmail?.toLowerCase());
-    const toName = isHR ? (toEmp?.name || 'Employee') : (hrAccount.name || 'HR Support');
+    const toName = isHR ? (toEmp?.name || 'Employee') : (hrAccount.name || 'Sarah Williams (HR)');
 
     const msgId = Date.now();
     const newMsg = {
@@ -2663,80 +2931,105 @@ async function handleSendChatMessage() {
         toEmail: toEmail,
         toName: toName,
         senderRole: role,
+        category: category,
         text: text,
         timestamp: Date.now(),
-        read: false
+        created_at: new Date().toISOString()
     };
 
     // 1. Clear input box immediately
     input.value = '';
     input.focus();
 
-    // 2. OPTIMISTIC INSTANT SENDER DISPLAY (Appears on right side like WhatsApp immediately!)
+    // 2. Append to frontend state & persist in localStorage
     const currentMsgs = window._currentMessages || [];
     currentMsgs.push(newMsg);
-    window._currentMessages = currentMsgs;
+    window.saveMessagesData(currentMsgs);
 
-    const stream = document.getElementById('chatMessagesStream');
-    if (stream) {
-        const timeStr = new Date(newMsg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const bubbleHtml = `
-            <div class="chat-bubble-row me">
-                <div class="chat-bubble bubble-me">
-                    <div class="chat-bubble-text">${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
-                    <div class="chat-bubble-time">
-                        <span>${timeStr}</span>
-                        <i class="fas fa-check-double" id="msg-tick-${msgId}"></i>
-                    </div>
-                </div>
-            </div>
-        `;
-        stream.insertAdjacentHTML('beforeend', bubbleHtml);
-        stream.scrollTop = stream.scrollHeight;
+    // 3. Immediately refresh the stream
+    refreshMessagesStream();
+
+    // 4. Also update sidebar last message if in HR view
+    if (isHR) {
+        const container = document.getElementById('section-messages');
+        if (container) container.innerHTML = renderMessages(userEmail, role);
     }
 
-    // 3. Save to database via backend API
-    if (!window.useMockData && window.api) {
-        try {
-            await window.api.sendMessage(newMsg);
-            const tick = document.getElementById(`msg-tick-${msgId}`);
-            if (tick) tick.style.color = '#53bdeb';
-            await refreshMessages();
-        } catch (e) {
-            console.error('❌ Failed to send message to database:', e);
-            window.showToast('Info', 'Message saved locally.', 'info');
-        }
-    } else {
-        window.saveMessagesData(currentMsgs);
-    }
+    // 5. Provide instant feedback toast
+    window.showToast('Message Sent', `Delivered to ${toName}`, 'success');
 }
 
-// ============================================
-// ===== REFRESH MESSAGES FROM BACKEND =====
-// ============================================
+window.handleSendChatMessage = handleSendChatMessage;
 
-async function refreshMessages() {
-    if (window.useMockData || !window.api) return;
-    
-    try {
-        const msgs = await window.api.getMessages();
-        let list = [];
-        if (Array.isArray(msgs)) {
-            list = msgs;
-        } else if (Array.isArray(msgs?.messages)) {
-            list = msgs.messages;
-        } else if (Array.isArray(msgs?.data)) {
-            list = msgs.data;
-        }
-        const normalized = list.map(window.normalizeMessage || (m => m)).filter(Boolean);
-        window._currentMessages = normalized;
-        console.log('✅ Messages refreshed from backend:', normalized.length);
-    } catch (e) {
-        console.warn('⚠️ Failed to refresh messages:', e.message);
+function exportChatTranscript() {
+    let userEmail = (window.currentUser?.email || window.userEmail || '').trim().toLowerCase();
+    const role = window.getRole(userEmail);
+    const isHR = role === 'hr' || role === 'admin';
+    const employees = window._currentEmployees || [];
+    const hrAccount = employees.find(e => e.role === 'hr' || e.role === 'admin') || { email: 'hr.hr@gmail.com', name: 'Sarah Williams' };
+    const targetEmail = isHR ? activeChatRecipient : (hrAccount.email || 'hr.hr@gmail.com');
+    const targetEmp = employees.find(e => e.email?.toLowerCase() === targetEmail?.toLowerCase()) || { name: isHR ? 'Employee' : 'HR Operations' };
+
+    const allMessages = (window._currentMessages || []).map(window.normalizeMessage || (m => m)).filter(Boolean);
+    const thread = isHR
+        ? allMessages.filter(m => {
+            const f = (m.from_email || m.fromEmail || '').toLowerCase();
+            const t = (m.to_email || m.toEmail || '').toLowerCase();
+            const target = (targetEmail || '').toLowerCase();
+            return f === target || t === target;
+        })
+        : allMessages.filter(m => {
+            const f = (m.from_email || m.fromEmail || '').toLowerCase();
+            const t = (m.to_email || m.toEmail || '').toLowerCase();
+            return f === userEmail || t === userEmail;
+        });
+
+    if (thread.length === 0) {
+        window.showToast('Notice', 'No messages to export in this thread.', 'info');
+        return;
     }
+
+    let transcript = `=======================================================================\n`;
+    transcript += `HR CONNECT CORPORATE PORTAL - OFFICIAL COMMUNICATION TRANSCRIPT\n`;
+    transcript += `Generated: ${new Date().toLocaleString('en-IN')}\n`;
+    transcript += `Participants: ${window.currentUser?.name || userEmail} & ${targetEmp.name} (${targetEmail})\n`;
+    transcript += `Total Messages: ${thread.length}\n`;
+    transcript += `=======================================================================\n\n`;
+
+    thread.forEach((msg) => {
+        const timeStr = new Date(msg.timestamp).toLocaleString('en-IN');
+        const sender = msg.fromName || (msg.from_email || msg.fromEmail);
+        const cat = msg.category ? `[Category: ${msg.category}] ` : '';
+        transcript += `[${timeStr}] ${sender}:\n${cat}${msg.text}\n\n`;
+    });
+
+    transcript += `=======================================================================\n`;
+    transcript += `CONFIDENTIAL & OFFICIAL RECORD - HR Connect Enterprise Helpdesk\n`;
+    transcript += `=======================================================================\n`;
+
+    const blob = new Blob([transcript], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `HR_Transcript_${(targetEmp.name || 'Chat').replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    window.showToast('Success', 'Conversation transcript downloaded successfully.', 'success');
 }
 
-window.refreshMessages = refreshMessages;
+window.exportChatTranscript = exportChatTranscript;
+
+// Reactive listener for data updates
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener('hr_messages_updated', () => {
+        if (typeof refreshMessagesStream === 'function') {
+            refreshMessagesStream();
+        }
+    });
+}
 // ============================================================
 // ===== 7. NOTIFICATIONS, REPORTS & SETTINGS =====
 // ============================================================
@@ -3224,7 +3517,7 @@ window.handlePayslipFilterChange = handlePayslipFilterChange;
 
 window.selectChatRecipient = selectChatRecipient;
 window.handleSendChatMessage = handleSendChatMessage;
-window.sendQuickMessage = sendQuickMessage;
+window.sendQuickMessage = function(text) { selectSuggestedChip(text); };
 window.markAllNotificationsRead = markAllNotificationsRead;
 window.refreshCurrentSection = refreshCurrentSection;
 // ============================================================

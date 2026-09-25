@@ -474,6 +474,7 @@ async function renderApp(userEmail) {
 
     setTimeout(() => initCharts(chartData), 300);
     console.log('✅ App rendered successfully with LIVE data!');
+    
 }
 
 window.renderApp = renderApp;

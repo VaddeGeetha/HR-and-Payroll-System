@@ -10,7 +10,6 @@ function initLocalStorageData() {
     if (!useMockData) {
         localStorage.removeItem('hr_employees');
         localStorage.removeItem('hr_leaves');
-        localStorage.removeItem('hr_messages');
         localStorage.removeItem('hr_payslips');
         localStorage.removeItem('hr_departments');
         localStorage.removeItem('hr_notifications');
@@ -78,6 +77,108 @@ function saveLeavesData(leaves) {
     }
     window.dispatchEvent(new CustomEvent('hr_data_updated', { detail: { type: 'leaves' } }));
 }
+
+const DEFAULT_SEED_MESSAGES = [
+    {
+        id: 101,
+        from_email: 'alex.employee@gmail.com',
+        fromEmail: 'alex.employee@gmail.com',
+        fromName: 'Alex Johnson',
+        to_email: 'hr.hr@gmail.com',
+        toEmail: 'hr.hr@gmail.com',
+        toName: 'Sarah Williams (HR)',
+        senderRole: 'employee',
+        category: 'Leave & Attendance',
+        text: 'Hello Sarah, I wanted to confirm if my recent leave request for next Friday was received by HR.',
+        timestamp: Date.now() - 1000 * 60 * 60 * 3,
+        created_at: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString()
+    },
+    {
+        id: 102,
+        from_email: 'hr.hr@gmail.com',
+        fromEmail: 'hr.hr@gmail.com',
+        fromName: 'Sarah Williams',
+        to_email: 'alex.employee@gmail.com',
+        toEmail: 'alex.employee@gmail.com',
+        toName: 'Alex Johnson',
+        senderRole: 'hr',
+        category: 'Leave & Attendance',
+        text: 'Hello Alex! Yes, your Casual Leave request has been received and approved by HR. Your remaining balance has been updated in the portal.',
+        timestamp: Date.now() - 1000 * 60 * 60 * 2.5,
+        created_at: new Date(Date.now() - 1000 * 60 * 60 * 2.5).toISOString()
+    },
+    {
+        id: 103,
+        from_email: 'alex.employee@gmail.com',
+        fromEmail: 'alex.employee@gmail.com',
+        fromName: 'Alex Johnson',
+        to_email: 'hr.hr@gmail.com',
+        toEmail: 'hr.hr@gmail.com',
+        toName: 'Sarah Williams (HR)',
+        senderRole: 'employee',
+        category: 'Payroll & Compensation',
+        text: 'Thank you for the quick confirmation! Also, could you please let me know where I can review the statutory deductions for this month?',
+        timestamp: Date.now() - 1000 * 60 * 60 * 1,
+        created_at: new Date(Date.now() - 1000 * 60 * 60 * 1).toISOString()
+    },
+    {
+        id: 104,
+        from_email: 'hr.hr@gmail.com',
+        fromEmail: 'hr.hr@gmail.com',
+        fromName: 'Sarah Williams',
+        to_email: 'alex.employee@gmail.com',
+        toEmail: 'alex.employee@gmail.com',
+        toName: 'Alex Johnson',
+        senderRole: 'hr',
+        category: 'Payroll & Compensation',
+        text: 'You can navigate to "My Payslips" on the sidebar. It features a complete itemized breakdown of PF, Professional Tax, Basic, and HRA allowances with PDF download options.',
+        timestamp: Date.now() - 1000 * 60 * 30,
+        created_at: new Date(Date.now() - 1000 * 60 * 30).toISOString()
+    },
+    {
+        id: 105,
+        from_email: 'maria.smith@gmail.com',
+        fromEmail: 'maria.smith@gmail.com',
+        fromName: 'Maria Smith',
+        to_email: 'hr.hr@gmail.com',
+        toEmail: 'hr.hr@gmail.com',
+        toName: 'Sarah Williams (HR)',
+        senderRole: 'employee',
+        category: 'Benefits & Insurance',
+        text: 'Good morning HR Team, could you please guide me on how to submit my updated medical insurance nomination form?',
+        timestamp: Date.now() - 1000 * 60 * 60 * 5,
+        created_at: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString()
+    },
+    {
+        id: 106,
+        from_email: 'hr.hr@gmail.com',
+        fromEmail: 'hr.hr@gmail.com',
+        fromName: 'Sarah Williams',
+        to_email: 'maria.smith@gmail.com',
+        toEmail: 'maria.smith@gmail.com',
+        toName: 'Maria Smith',
+        senderRole: 'hr',
+        category: 'Benefits & Insurance',
+        text: 'Good morning Maria, you can update your dependent details in the Profile section or share the form here for HR compliance verification.',
+        timestamp: Date.now() - 1000 * 60 * 60 * 4,
+        created_at: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString()
+    },
+    {
+        id: 107,
+        from_email: 'david.brown@gmail.com',
+        fromEmail: 'david.brown@gmail.com',
+        fromName: 'David Brown',
+        to_email: 'hr.hr@gmail.com',
+        toEmail: 'hr.hr@gmail.com',
+        toName: 'Sarah Williams (HR)',
+        senderRole: 'employee',
+        category: 'Payroll & Compensation',
+        text: 'Hi Sarah, quarterly statutory tax deduction reports have been reconciled for the finance team.',
+        timestamp: Date.now() - 1000 * 60 * 60 * 8,
+        created_at: new Date(Date.now() - 1000 * 60 * 60 * 8).toISOString()
+    }
+];
+
 function normalizeMessage(m) {
     if (!m) return null;
     const from = m.from_email || m.fromEmail || m.from || '';
@@ -89,8 +190,12 @@ function normalizeMessage(m) {
         id: m.id || Date.now(),
         from_email: from,
         fromEmail: from,
+        fromName: m.fromName || '',
         to_email: to,
         toEmail: to,
+        toName: m.toName || '',
+        senderRole: m.senderRole || '',
+        category: m.category || 'General Inquiry',
         text: text,
         timestamp: ts,
         created_at: m.created_at || new Date(ts).toISOString()
@@ -99,41 +204,54 @@ function normalizeMessage(m) {
 
 window.normalizeMessage = normalizeMessage;
 
-async function fetchMessages() {
-    // ✅ Fetch from backend API (primary)
-    if (!useMockData && window.api) {
-        try {
-            const msgs = await window.api.getMessages();
-            let rawList = [];
-            if (Array.isArray(msgs)) {
-                rawList = msgs;
-            } else if (Array.isArray(msgs?.messages)) {
-                rawList = msgs.messages;
-            } else if (Array.isArray(msgs?.data)) {
-                rawList = msgs.data;
+function getStoredMessages() {
+    try {
+        const stored = localStorage.getItem('hr_connect_messages');
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                return parsed.map(normalizeMessage).filter(Boolean);
             }
-            const normalized = rawList.map(normalizeMessage).filter(Boolean);
-            window._currentMessages = normalized;
-            return normalized;
-        } catch (e) {
-            console.warn('⚠️ Failed to fetch messages:', e.message);
-            return [];
         }
-    }
-    // Mock fallback
-    const list = (MOCK_DATA.messages || []).map(normalizeMessage).filter(Boolean);
+    } catch (e) {}
+    localStorage.setItem('hr_connect_messages', JSON.stringify(DEFAULT_SEED_MESSAGES));
+    return DEFAULT_SEED_MESSAGES.map(normalizeMessage).filter(Boolean);
+}
+
+async function fetchMessages() {
+    // ✅ Frontend JavaScript State & Persistent LocalStorage
+    const list = getStoredMessages();
     window._currentMessages = list;
     return list;
 }
 
 function saveMessagesData(messages) {
     const normalized = (messages || []).map(normalizeMessage).filter(Boolean);
-    window._currentMessages = normalized;
-    if (useMockData) {
-        MOCK_DATA.messages = normalized;
-        localStorage.setItem('hr_messages', JSON.stringify(normalized));
+    try {
+        localStorage.setItem('hr_connect_messages', JSON.stringify(normalized));
+    } catch (e) {}
+    if (typeof window !== 'undefined') {
+        window._currentMessages = normalized;
     }
-    window.dispatchEvent(new CustomEvent('hr_data_updated', { detail: { type: 'messages' } }));
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('hr_data_updated', { detail: { type: 'messages' } }));
+        window.dispatchEvent(new CustomEvent('hr_messages_updated', { detail: { messages: normalized } }));
+    }
+}
+
+// Multi-tab/window reactive listener
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener('storage', (e) => {
+        if (e.key === 'hr_connect_messages') {
+            try {
+                const updated = JSON.parse(e.newValue || '[]').map(normalizeMessage).filter(Boolean);
+                window._currentMessages = updated;
+                if (typeof window.refreshMessagesStream === 'function') {
+                    window.refreshMessagesStream();
+                }
+            } catch (err) {}
+        }
+    });
 }
 
 async function fetchPayslips() {
