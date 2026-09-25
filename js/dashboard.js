@@ -300,7 +300,13 @@ window.toggleWorkBreak = toggleWorkBreak;
 // ============================================================
 
 async function renderApp(userEmail) {
+   
     console.log('🔄 Rendering app for:', userEmail);
+    console.log('👥 Employees in state:', window._currentEmployees?.length || 0);
+    console.log('📋 Leaves in state:', window._currentLeaves?.length || 0);
+    console.log('💬 Messages in state:', window._currentMessages?.length || 0);
+    
+    
 
     const container = document.getElementById('contentSections');
     const hasCachedData = (window._currentEmployees && window._currentEmployees.length > 0);
@@ -437,22 +443,26 @@ async function renderApp(userEmail) {
     // Render Section Containers
     if (container) {
         container.innerHTML = '';
-
         const renderers = {
-            dashboard: renderDashboard,
-            employees: renderEmployees,
-            departments: renderDepartments,
-            leaves: renderLeaves,
-            apply_leave: renderApplyLeaveSection,
-            my_leaves: renderMyLeavesSection,
-            leave_balance: renderLeaveBalanceSection,
-            payroll: renderPayroll,
-            my_payslips: renderMyPayslipsSection,
-            reports: renderReports,
-            messages: renderMessages,
-            profile: renderProfile,
-            attendance: renderAttendance
-        };
+    dashboard: window.renderDashboard || renderFallback,
+    employees: window.renderEmployees || renderFallback,
+    departments: window.renderDepartments || renderFallback,
+    leaves: window.renderLeaves || renderFallback,
+    apply_leave: window.renderApplyLeaveSection || renderFallback,
+    my_leaves: window.renderMyLeavesSection || renderFallback,
+    leave_balance: window.renderLeaveBalanceSection || renderFallback,
+    payroll: window.renderPayroll || renderFallback,
+    my_payslips: window.renderMyPayslipsSection || renderFallback,
+    reports: window.renderReports || renderFallback,
+    messages: window.renderMessages || renderFallback,
+    profile: window.renderProfile || renderFallback,
+    attendance: window.renderAttendance || renderFallback
+};
+
+function renderFallback() {
+    return '<div style="padding:2rem;text-align:center;color:#dc3545;"><h3>⚠️ Section Failed to Load</h3><p>renderers.js did not load properly. Check F12 Console for earlier errors.</p></div>';
+}
+
 
         Object.keys(renderers).forEach(key => {
             const div = document.createElement('div');
