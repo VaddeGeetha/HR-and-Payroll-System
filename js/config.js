@@ -3,24 +3,26 @@
 // ============================================================
 
 const CONFIG = {
-    API_URL: 'https://hr-and-payroll-9fz9.onrender.com/api', // Backend Express REST API
-    USE_MOCK_DATA: false,                 // Disabled: Connect directly to Backend API & Database
+    API_URL: 'https://hr-and-payroll-9fz9.onrender.com/api',
+    USE_MOCK_DATA: false,
 };
 window.CONFIG = CONFIG;
 window.useMockData = false;
 
-// Default avatar placeholder images for identification
-const DEFAULT_AVATARS = {
-    male: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+// ============================================================
+// ===== DEFAULT AVATARS (window-scoped, no const redeclaration) =====
+// ============================================================
+window.DEFAULT_AVATARS = {
+    male:   'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
     female: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
-    alex: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80',
-    hr: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80'
+    alex:   'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80',
+    hr:     'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80'
 };
 
 // ============================================================
 // ===== DEPARTMENT-BASED DESIGNATIONS MAPPING =====
 // ============================================================
-const DEPARTMENT_DESIGNATIONS = {
+window.DEPARTMENT_DESIGNATIONS = {
     'IT': [
         'Software Developer',
         'Frontend Developer',
@@ -69,14 +71,13 @@ const DEPARTMENT_DESIGNATIONS = {
 // ============================================================
 // ===== COMPLETE MOCK DATA =====
 // ============================================================
-
-const MOCK_DATA = {
+window.MOCK_DATA = {
     // ----- EMPLOYEES -----
     employees: [
         {
             id: 1,
             name: 'Alex Johnson',
-            email: 'alex.employee@gmail.com', // Permanent Email ID (cannot be changed)
+            email: 'alex.employee@gmail.com',
             phone: '+91 98765 43210',
             gender: 'Male',
             address: 'Flat 402, Cyber Heights, Madhapur, Hyderabad, Telangana 500081',
@@ -89,7 +90,7 @@ const MOCK_DATA = {
             monthly_salary: 75000,
             joining_date: '2024-01-15',
             dob: '1995-06-20',
-            photo: DEFAULT_AVATARS.alex,
+            photo: window.DEFAULT_AVATARS.alex,
             aadhaar: '7482 9104 3829',
             pan: 'ABCDE1234F',
             passport: 'L8924012',
@@ -144,7 +145,7 @@ const MOCK_DATA = {
             monthly_salary: 82000,
             joining_date: '2024-03-01',
             dob: '1993-11-12',
-            photo: DEFAULT_AVATARS.female,
+            photo: window.DEFAULT_AVATARS.female,
             aadhaar: '8392 0184 7291',
             pan: 'MSMTH5678G',
             passport: 'P4810294',
@@ -199,7 +200,7 @@ const MOCK_DATA = {
             monthly_salary: 95000,
             joining_date: '2023-11-10',
             dob: '1989-04-18',
-            photo: DEFAULT_AVATARS.male,
+            photo: window.DEFAULT_AVATARS.male,
             aadhaar: '4829 1048 2910',
             pan: 'DBRWN9012K',
             passport: 'K9102840',
@@ -241,7 +242,7 @@ const MOCK_DATA = {
         {
             id: 4,
             name: 'Sarah Williams',
-            email: 'hr.hr@gmail.com', // HR Manager Email
+            email: 'hr.hr@gmail.com',
             phone: '+91 98765 43213',
             gender: 'Female',
             address: 'Tower B, Silicon Valley Apts, Kondapur, Hyderabad, Telangana 500084',
@@ -254,7 +255,7 @@ const MOCK_DATA = {
             monthly_salary: 88000,
             joining_date: '2023-08-01',
             dob: '1991-09-25',
-            photo: DEFAULT_AVATARS.hr,
+            photo: window.DEFAULT_AVATARS.hr,
             aadhaar: '6291 0482 9104',
             pan: 'SWLLM3456P',
             passport: 'M1048291',
@@ -309,7 +310,7 @@ const MOCK_DATA = {
             monthly_salary: 70000,
             joining_date: '2024-05-15',
             dob: '1994-02-14',
-            photo: DEFAULT_AVATARS.male,
+            photo: window.DEFAULT_AVATARS.male,
             aadhaar: '5192 0481 9204',
             pan: 'MCHNG7890L',
             passport: 'T4920194',
@@ -351,7 +352,7 @@ const MOCK_DATA = {
         {
             id: 6,
             name: 'Emily Davis',
-            email: 'admin.admin@gmail.com', // Admin Email
+            email: 'admin.admin@gmail.com',
             phone: '+91 98765 43215',
             gender: 'Female',
             address: 'Penthouse 14, Sky City, Jubilee Hills, Hyderabad, Telangana 500033',
@@ -364,7 +365,7 @@ const MOCK_DATA = {
             monthly_salary: 100000,
             joining_date: '2023-01-10',
             dob: '1988-12-05',
-            photo: DEFAULT_AVATARS.female,
+            photo: window.DEFAULT_AVATARS.female,
             aadhaar: '9104 8291 0482',
             pan: 'EDAVS1234M',
             passport: 'R9104820',
@@ -417,157 +418,18 @@ const MOCK_DATA = {
 
     // ----- LEAVE REQUESTS -----
     leaveRequests: [
-        {
-            id: 1,
-            employee: 'Alex Johnson',
-            employee_id: 1,
-            type: 'Casual Leave',
-            from: '2026-08-10',
-            to: '2026-08-12',
-            days: 3,
-            reason: 'Attending family function out of town',
-            status: 'pending',
-            comments: []
-        },
-        {
-            id: 2,
-            employee: 'Maria Smith',
-            employee_id: 2,
-            type: 'Sick Leave',
-            from: '2026-08-05',
-            to: '2026-08-06',
-            days: 2,
-            reason: 'Viral fever and medical consultation',
-            status: 'approved',
-            comments: ['Approved by HR Manager Sarah Williams on 2026-08-04']
-        },
-        {
-            id: 3,
-            employee: 'David Brown',
-            employee_id: 3,
-            type: 'Earned Leave',
-            from: '2026-08-20',
-            to: '2026-08-24',
-            days: 5,
-            reason: 'Annual personal vacation',
-            status: 'pending',
-            comments: []
-        },
-        {
-            id: 4,
-            employee: 'Michael Chang',
-            employee_id: 5,
-            type: 'Casual Leave',
-            from: '2026-07-15',
-            to: '2026-07-16',
-            days: 2,
-            reason: 'Urgent personal bank work',
-            status: 'approved',
-            comments: ['Approved by HR']
-        }
+        { id: 1, employee: 'Alex Johnson', employee_id: 1, type: 'Casual Leave', from: '2026-08-10', to: '2026-08-12', days: 3, reason: 'Attending family function out of town', status: 'pending', comments: [] },
+        { id: 2, employee: 'Maria Smith', employee_id: 2, type: 'Sick Leave', from: '2026-08-05', to: '2026-08-06', days: 2, reason: 'Viral fever and medical consultation', status: 'approved', comments: ['Approved by HR Manager Sarah Williams on 2026-08-04'] },
+        { id: 3, employee: 'David Brown', employee_id: 3, type: 'Earned Leave', from: '2026-08-20', to: '2026-08-24', days: 5, reason: 'Annual personal vacation', status: 'pending', comments: [] },
+        { id: 4, employee: 'Michael Chang', employee_id: 5, type: 'Casual Leave', from: '2026-07-15', to: '2026-07-16', days: 2, reason: 'Urgent personal bank work', status: 'approved', comments: ['Approved by HR'] }
     ],
 
-    // ----- PAYROLL & PAYSLIPS (WITH CRITERIA & DOWNLOAD DATA) -----
+    // ----- PAYROLL -----
     payroll: {
         total: 487000,
         currency: 'INR',
         processed_count: 6,
         pending_count: 0,
-        payslips: [
-            {
-                id: 'PS-2026-08-1',
-                employee_id: 1,
-                employee_name: 'Alex Johnson',
-                month: 'August',
-                year: '2026',
-                pay_period: '01 Aug 2026 - 31 Aug 2026',
-                working_days: 22,
-                status: 'paid',
-                bank_name: 'HDFC Bank',
-                bank_account: '•••• 10482',
-                pan: 'ABCDE1234F',
-                aadhaar: '7482 9104 3829',
-                allowances: [
-                    { name: 'Basic Salary', amount: 40000, criteria: 'Core basic taxable base component as per employment contract.' },
-                    { name: 'House Rent Allowance (HRA)', amount: 16000, criteria: '40% of Basic Pay allocated for housing accommodation support (Sec 10(13A)).' },
-                    { name: 'Special Allowance', amount: 10000, criteria: 'Performance and operational incentive allowance.' },
-                    { name: 'Conveyance Allowance', amount: 4000, criteria: 'Transport reimbursement for official city travel and commute.' },
-                    { name: 'Medical Allowance', amount: 5000, criteria: 'Routine health & wellness assistance reimbursement.' }
-                ],
-                deductions: [
-                    { name: 'Provident Fund (PF)', amount: 4800, criteria: '12% statutory employee contribution mandated under EPF Act 1952.' },
-                    { name: 'Professional Tax (PT)', amount: 200, criteria: 'State Government statutory employment tax remittance.' },
-                    { name: 'Income Tax (TDS)', amount: 3500, criteria: 'Tax Deducted at Source calculated as per applicable annual income tax slab.' },
-                    { name: 'Mediclaim / Health Insurance', amount: 0, criteria: '100% employer-sponsored corporate group medical coverage.' }
-                ],
-                gross_earnings: 75000,
-                total_deductions: 8500,
-                net_salary: 66500,
-                net_salary_words: 'Rupees Sixty-Six Thousand Five Hundred Only'
-            },
-            {
-                id: 'PS-2026-07-1',
-                employee_id: 1,
-                employee_name: 'Alex Johnson',
-                month: 'July',
-                year: '2026',
-                pay_period: '01 Jul 2026 - 31 Jul 2026',
-                working_days: 23,
-                status: 'paid',
-                bank_name: 'HDFC Bank',
-                bank_account: '•••• 10482',
-                pan: 'ABCDE1234F',
-                aadhaar: '7482 9104 3829',
-                allowances: [
-                    { name: 'Basic Salary', amount: 40000, criteria: 'Base compensation.' },
-                    { name: 'House Rent Allowance (HRA)', amount: 16000, criteria: '40% of Basic Pay.' },
-                    { name: 'Special Allowance', amount: 10000, criteria: 'Performance allowance.' },
-                    { name: 'Conveyance Allowance', amount: 4000, criteria: 'Travel assistance.' },
-                    { name: 'Medical Allowance', amount: 5000, criteria: 'Medical support.' }
-                ],
-                deductions: [
-                    { name: 'Provident Fund (PF)', amount: 4800, criteria: '12% EPF statutory deduction.' },
-                    { name: 'Professional Tax (PT)', amount: 200, criteria: 'State employment tax.' },
-                    { name: 'Income Tax (TDS)', amount: 3500, criteria: 'Standard income tax withholding.' }
-                ],
-                gross_earnings: 75000,
-                total_deductions: 8500,
-                net_salary: 66500,
-                net_salary_words: 'Rupees Sixty-Six Thousand Five Hundred Only'
-            },
-            {
-                id: 'PS-2026-06-1',
-                employee_id: 1,
-                employee_name: 'Alex Johnson',
-                month: 'June',
-                year: '2026',
-                pay_period: '01 Jun 2026 - 30 Jun 2026',
-                working_days: 22,
-                status: 'paid',
-                bank_name: 'HDFC Bank',
-                bank_account: '•••• 10482',
-                pan: 'ABCDE1234F',
-                aadhaar: '7482 9104 3829',
-                allowances: [
-                    { name: 'Basic Salary', amount: 40000, criteria: 'Base compensation.' },
-                    { name: 'House Rent Allowance (HRA)', amount: 16000, criteria: '40% of Basic Pay.' },
-                    { name: 'Special Allowance', amount: 10000, criteria: 'Performance allowance.' },
-                    { name: 'Conveyance Allowance', amount: 4000, criteria: 'Travel assistance.' },
-                    { name: 'Medical Allowance', amount: 5000, criteria: 'Medical support.' }
-                ],
-                deductions: [
-                    { name: 'Provident Fund (PF)', amount: 4800, criteria: '12% EPF statutory deduction.' },
-                    { name: 'Professional Tax (PT)', amount: 200, criteria: 'State employment tax.' },
-                    { name: 'Income Tax (TDS)', amount: 3500, criteria: 'Standard income tax withholding.' }
-                ],
-                gross_earnings: 75000,
-                total_deductions: 8500,
-                net_salary: 66500,
-                net_salary_words: 'Rupees Sixty-Six Thousand Five Hundred Only'
-            }
-        ],
-
-        // High level overview
         current: {
             month: 'August 2026',
             basic: 40000,
@@ -616,11 +478,19 @@ const MOCK_DATA = {
         leaveStats: { pending: 2, approved: 8, rejected: 1, total: 11 }
     },
 
-    // ----- MESSAGES (REAL TIME CHAT - NO PRELOADED MESSAGES) -----
+    // ----- MESSAGES -----
     messages: []
 };
 
-window.CONFIG = CONFIG;
-window.DEFAULT_AVATARS = DEFAULT_AVATARS;
-window.DEPARTMENT_DESIGNATIONS = DEPARTMENT_DESIGNATIONS;
-window.MOCK_DATA = MOCK_DATA;
+// ============================================================
+// ===== GLOBAL EXPORTS (single source of truth) =====
+// ============================================================
+// NOTE: window.CONFIG, window.DEFAULT_AVATARS, window.DEPARTMENT_DESIGNATIONS,
+// and window.MOCK_DATA are already set above.
+// This block just confirms they exist — no redeclaration.
+
+console.log('✅ config.js loaded cleanly');
+console.log('   - CONFIG.API_URL:', window.CONFIG.API_URL);
+console.log('   - DEFAULT_AVATARS keys:', Object.keys(window.DEFAULT_AVATARS).join(', '));
+console.log('   - DEPARTMENT_DESIGNATIONS:', Object.keys(window.DEPARTMENT_DESIGNATIONS).join(', '));
+console.log('   - MOCK_DATA.employees:', window.MOCK_DATA.employees.length, 'records');
