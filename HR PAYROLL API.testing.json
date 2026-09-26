@@ -1,0 +1,569 @@
+{
+  "info": {
+    "_postman_id": "16e988e4-27c4-4b18-b793-0ed67a448a54",
+    "name": "HR PAYROLL API",
+    "description": "### Welcome to Postman! This is your first collection. \n\nCollections are your starting point for building and testing APIs. You can use this one to:\n\n• Group related requests\n• Test your API in real-world scenarios\n• Document and share your requests\n\nUpdate the name and overview whenever you’re ready to make it yours.\n\n[Learn more about Postman Collections.](https://learning.postman.com/docs/collections/collections-overview/)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "56122757",
+    "_collection_link": "https://go.postman.co/collection/56122757-16e988e4-27c4-4b18-b793-0ed67a448a54?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "Get data",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "postman-echo.com/get",
+          "host": [
+            "postman-echo",
+            "com"
+          ],
+          "path": [
+            "get"
+          ]
+        },
+        "description": "This is a GET request and it is used to \"get\" data from an endpoint. There is no request body for a GET request, but you can use query parameters to help specify the resource you want data on (e.g., in this request, we have `id=1`).\n\nA successful GET response will have a `200 OK` status, and should include some kind of response body - for example, HTML web content or JSON data."
+      },
+      "response": []
+    },
+    {
+      "name": "Post data",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Successful POST request\", function () {",
+              "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+              "});",
+              ""
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n\t\"name\": \"Add your name in the body\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "postman-echo.com/post",
+          "host": [
+            "postman-echo",
+            "com"
+          ],
+          "path": [
+            "post"
+          ]
+        },
+        "description": "This is a POST request, submitting data to an API via the request body. This request submits JSON data, and the data is reflected in the response.\n\nA successful POST request typically returns a `200 OK` or `201 Created` response code."
+      },
+      "response": []
+    },
+    {
+      "name": "http://localhost:5000/api/auth/login",
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"email\": \"admin@hr.com\",\r\n    \"password\": \"admin123\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "text"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:5000/api/auth/login",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5000",
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "http://localhost:5000/api/auth/forgot-password",
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"email\": \"admin@hr.com\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "text"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:5000/api/auth/forgot-password",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5000",
+          "path": [
+            "api",
+            "auth",
+            "forgot-password"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "http://localhost:5000/api/auth/reset-password",
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"email\": \"varshpamera@gmail.com\",\r\n  \"otp\": \"753875\",\r\n  \"newPassword\": \"Employee@123\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "text"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:5000/api/auth/reset-password",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5000",
+          "path": [
+            "api",
+            "auth",
+            "reset-password"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "http://localhost:5000/api/auth/forgot-password",
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"email\": \"varshpamera@gmail.com\"\r\n}\r\n\r\n",
+          "options": {
+            "raw": {
+              "language": "text"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:5000/api/auth/forgot-password",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5000",
+          "path": [
+            "api",
+            "auth",
+            "forgot-password"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "http://localhost:5000/api/leaves/my-leaves",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJFUzI1NiIsImtpZCI6ImQ4ZGJkZDNkLWQ2MzMtNGE2NC1iOTMxLTQ3YTcxYTljZmExMyIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL3preWdrbGJkaXN2b2JhaG54Z2Z1LnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJzdWIiOiI2OTQ2ODZjMy0yMGFlLTRjY2EtYTg2Ni04MzU2MWVlZjI0YjQiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzg5NjQ5ODI4LCJpYXQiOjE3ODk2NDYyMjgsImVtYWlsIjoicmFodWwxMjM0NUBnbWFpbC5jb20iLCJwaG9uZSI6IiIsImFwcF9tZXRhZGF0YSI6eyJwcm92aWRlciI6ImVtYWlsIiwicHJvdmlkZXJzIjpbImVtYWlsIl19LCJ1c2VyX21ldGFkYXRhIjp7ImVtYWlsX3ZlcmlmaWVkIjp0cnVlfSwicm9sZSI6ImF1dGhlbnRpY2F0ZWQiLCJhYWwiOiJhYWwxIiwiYW1yIjpbeyJtZXRob2QiOiJwYXNzd29yZCIsInRpbWVzdGFtcCI6MTc4OTY0NjIyOH1dLCJzZXNzaW9uX2lkIjoiNzMyNmVhYTMtYmM0Ny00MzA1LWE4ZWItMDgxZmMyMzM4ZDQ5IiwiaXNfYW5vbnltb3VzIjpmYWxzZX0.TmojKYwU5Z6qtLuyGxhUTn11PrnG4fbhN1VcjWEjkPe_gZ3F7slE1zNFLVWFGXdMmMCle6NVnRXkx5vmNCJrBQ",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:5000/api/leaves/my-leaves",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5000",
+          "path": [
+            "api",
+            "leaves",
+            "my-leaves"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "http://localhost:5000/api/payroll/run",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJFUzI1NiIsImtpZCI6ImQ4ZGJkZDNkLWQ2MzMtNGE2NC1iOTMxLTQ3YTcxYTljZmExMyIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL3preWdrbGJkaXN2b2JhaG54Z2Z1LnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJzdWIiOiJjYTM2Mjg3OS03NGY3LTQ3N2EtODM4Yi03ZmJmYmEwNWZlY2UiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzg4MTgxNDMwLCJpYXQiOjE3ODgxNzc4MzAsImVtYWlsIjoiaHJAaHIuY29tIiwicGhvbmUiOiIiLCJhcHBfbWV0YWRhdGEiOnsicHJvdmlkZXIiOiJlbWFpbCIsInByb3ZpZGVycyI6WyJlbWFpbCJdfSwidXNlcl9tZXRhZGF0YSI6eyJlbWFpbF92ZXJpZmllZCI6dHJ1ZX0sInJvbGUiOiJhdXRoZW50aWNhdGVkIiwiYWFsIjoiYWFsMSIsImFtciI6W3sibWV0aG9kIjoicGFzc3dvcmQiLCJ0aW1lc3RhbXAiOjE3ODgxNzc4MzB9XSwic2Vzc2lvbl9pZCI6ImQ2ZTBmMDcwLTUxM2ItNDcyMy1hOTJmLThkNDM0ZTAyOTY5MyIsImlzX2Fub255bW91cyI6ZmFsc2V9.Vt5WddeKlWJuDTDKJKOxJaULZ3aphtnJ3WOFF6IhDiWHAYy_fLUxcHGkJKbnrl1xme6bM8LgQPN9iQofMHcnRQ",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"month\":\"August\",\r\n    \"year\":2026\r\n}",
+          "options": {
+            "raw": {
+              "language": "text"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:5000/api/payroll/run",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5000",
+          "path": [
+            "api",
+            "payroll",
+            "run"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "https://hr-and-payroll-9fz9.onrender.com/api/messages",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJFUzI1NiIsImtpZCI6ImQ4ZGJkZDNkLWQ2MzMtNGE2NC1iOTMxLTQ3YTcxYTljZmExMyIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL3preWdrbGJkaXN2b2JhaG54Z2Z1LnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJzdWIiOiJjYTM2Mjg3OS03NGY3LTQ3N2EtODM4Yi03ZmJmYmEwNWZlY2UiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzg5NjQ3OTI1LCJpYXQiOjE3ODk2NDQzMjUsImVtYWlsIjoiaHJAaHIuY29tIiwicGhvbmUiOiIiLCJhcHBfbWV0YWRhdGEiOnsicHJvdmlkZXIiOiJlbWFpbCIsInByb3ZpZGVycyI6WyJlbWFpbCJdfSwidXNlcl9tZXRhZGF0YSI6eyJlbWFpbF92ZXJpZmllZCI6dHJ1ZX0sInJvbGUiOiJhdXRoZW50aWNhdGVkIiwiYWFsIjoiYWFsMSIsImFtciI6W3sibWV0aG9kIjoicGFzc3dvcmQiLCJ0aW1lc3RhbXAiOjE3ODk2NDQzMjV9XSwic2Vzc2lvbl9pZCI6ImQ0M2NlM2FjLTU5MzAtNGM3OS1iNzFlLWRjZmMwYmU1MDI0YyIsImlzX2Fub255bW91cyI6ZmFsc2V9.1hRsUVfEzKl-mbrf8JK96LIGufAAn2v-7iGqNO5XMTnq-XTNu1Ak8dW5o0_XfVQxQlGy95NzyIVaiwzKcaOQQA",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"fromEmail\":\"hr@hr.com\",\r\n    \"toEmail\":\"priya@gmail.com\",\r\n    \"text\":\"welcome to hr connect\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "text"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://hr-and-payroll-9fz9.onrender.com/api/messages",
+          "protocol": "https",
+          "host": [
+            "hr-and-payroll-9fz9",
+            "onrender",
+            "com"
+          ],
+          "path": [
+            "api",
+            "messages"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "https://hr-and-payroll-9fz9.onrender.com/api/messages",
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://hr-and-payroll-9fz9.onrender.com/api/messages",
+          "protocol": "https",
+          "host": [
+            "hr-and-payroll-9fz9",
+            "onrender",
+            "com"
+          ],
+          "path": [
+            "api",
+            "messages"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": " http://localhost:5000/api/leaves/pending",
+      "protocolProfileBehavior": {
+        "disableCookies": false,
+        "followRedirects": true,
+        "maxResponseSize": 52428800,
+        "strictSSL": false
+      },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:5000/api/leaves/pending",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5000",
+          "path": [
+            "api",
+            "leaves",
+            "pending"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "http://localhost:5000/api/leaves/my-leaves",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJFUzI1NiIsImtpZCI6ImQ4ZGJkZDNkLWQ2MzMtNGE2NC1iOTMxLTQ3YTcxYTljZmExMyIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL3preWdrbGJkaXN2b2JhaG54Z2Z1LnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJzdWIiOiJjYTM2Mjg3OS03NGY3LTQ3N2EtODM4Yi03ZmJmYmEwNWZlY2UiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzg5NjQ4NzkyLCJpYXQiOjE3ODk2NDUxOTIsImVtYWlsIjoiaHJAaHIuY29tIiwicGhvbmUiOiIiLCJhcHBfbWV0YWRhdGEiOnsicHJvdmlkZXIiOiJlbWFpbCIsInByb3ZpZGVycyI6WyJlbWFpbCJdfSwidXNlcl9tZXRhZGF0YSI6eyJlbWFpbF92ZXJpZmllZCI6dHJ1ZX0sInJvbGUiOiJhdXRoZW50aWNhdGVkIiwiYWFsIjoiYWFsMSIsImFtciI6W3sibWV0aG9kIjoicGFzc3dvcmQiLCJ0aW1lc3RhbXAiOjE3ODk2NDUxOTJ9XSwic2Vzc2lvbl9pZCI6IjMxZjMyZjQxLWQwMjItNGE0NS05OWM1LWRhMTljYTNlYTgwZSIsImlzX2Fub255bW91cyI6ZmFsc2V9.Mq4hOpRu1-p4jICMdQ3_uQTQo1oBwPPD8LA5ropjfl9FI1IWNJ8MZA2mh6rmslRQGI87QKXI2QV5cjoYn_eGAg",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:5000/api/leaves/my-leaves",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5000",
+          "path": [
+            "api",
+            "leaves",
+            "my-leaves"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "http://localhost:5000/api/leaves/pending",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJFUzI1NiIsImtpZCI6ImQ4ZGJkZDNkLWQ2MzMtNGE2NC1iOTMxLTQ3YTcxYTljZmExMyIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL3preWdrbGJkaXN2b2JhaG54Z2Z1LnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJzdWIiOiJjYTM2Mjg3OS03NGY3LTQ3N2EtODM4Yi03ZmJmYmEwNWZlY2UiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzg5NjQ5OTc0LCJpYXQiOjE3ODk2NDYzNzQsImVtYWlsIjoiaHJAaHIuY29tIiwicGhvbmUiOiIiLCJhcHBfbWV0YWRhdGEiOnsicHJvdmlkZXIiOiJlbWFpbCIsInByb3ZpZGVycyI6WyJlbWFpbCJdfSwidXNlcl9tZXRhZGF0YSI6eyJlbWFpbF92ZXJpZmllZCI6dHJ1ZX0sInJvbGUiOiJhdXRoZW50aWNhdGVkIiwiYWFsIjoiYWFsMSIsImFtciI6W3sibWV0aG9kIjoicGFzc3dvcmQiLCJ0aW1lc3RhbXAiOjE3ODk2NDYzNzR9XSwic2Vzc2lvbl9pZCI6Ijg1ZWU0MjIzLWZkMjQtNDE4OS04M2M5LWVjN2E4MmMxN2M4NSIsImlzX2Fub255bW91cyI6ZmFsc2V9.FXfenvi2URpiQphGkK4tnlJZQSvorq5QGMZUYlqnO9APjv37pzdN15_UtBXSCX1QdIn3QTqQQzQwnosEtQzZqw",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:5000/api/leaves/pending",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5000",
+          "path": [
+            "api",
+            "leaves",
+            "pending"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "http://localhost:5000/api/dashboard/stats",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJFUzI1NiIsImtpZCI6ImQ4ZGJkZDNkLWQ2MzMtNGE2NC1iOTMxLTQ3YTcxYTljZmExMyIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL3preWdrbGJkaXN2b2JhaG54Z2Z1LnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJzdWIiOiJjYTM2Mjg3OS03NGY3LTQ3N2EtODM4Yi03ZmJmYmEwNWZlY2UiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzkwMjcxNjE0LCJpYXQiOjE3OTAyNjgwMTQsImVtYWlsIjoiaHJAaHIuY29tIiwicGhvbmUiOiIiLCJhcHBfbWV0YWRhdGEiOnsicHJvdmlkZXIiOiJlbWFpbCIsInByb3ZpZGVycyI6WyJlbWFpbCJdfSwidXNlcl9tZXRhZGF0YSI6eyJlbWFpbF92ZXJpZmllZCI6dHJ1ZX0sInJvbGUiOiJhdXRoZW50aWNhdGVkIiwiYWFsIjoiYWFsMSIsImFtciI6W3sibWV0aG9kIjoicGFzc3dvcmQiLCJ0aW1lc3RhbXAiOjE3OTAyNjgwMTR9XSwic2Vzc2lvbl9pZCI6ImY2ZTg0YTNiLWZiOGMtNDc5Zi04ZmQyLTkwYmQ3Yjc1YWM5YSIsImlzX2Fub255bW91cyI6ZmFsc2V9.ZCnhXseXVxdZhFa8ctdR-sPvVvGB9XWRt_BtwGRv5jlec4hSPBn-AHfTmdTfACkABaosxptozFW-xKwv6mgcrw",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:5000/api/dashboard/charts",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5000",
+          "path": [
+            "api",
+            "dashboard",
+            "charts"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "http://localhost:5000/api/dashboard/charts",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJFUzI1NiIsImtpZCI6ImQ4ZGJkZDNkLWQ2MzMtNGE2NC1iOTMxLTQ3YTcxYTljZmExMyIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL3preWdrbGJkaXN2b2JhaG54Z2Z1LnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJzdWIiOiJjYTM2Mjg3OS03NGY3LTQ3N2EtODM4Yi03ZmJmYmEwNWZlY2UiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzkwMjcxOTU2LCJpYXQiOjE3OTAyNjgzNTYsImVtYWlsIjoiaHJAaHIuY29tIiwicGhvbmUiOiIiLCJhcHBfbWV0YWRhdGEiOnsicHJvdmlkZXIiOiJlbWFpbCIsInByb3ZpZGVycyI6WyJlbWFpbCJdfSwidXNlcl9tZXRhZGF0YSI6eyJlbWFpbF92ZXJpZmllZCI6dHJ1ZX0sInJvbGUiOiJhdXRoZW50aWNhdGVkIiwiYWFsIjoiYWFsMSIsImFtciI6W3sibWV0aG9kIjoicGFzc3dvcmQiLCJ0aW1lc3RhbXAiOjE3OTAyNjgzNTZ9XSwic2Vzc2lvbl9pZCI6IjI0ZjU1ZDZkLWJlZDgtNDgyZS05NTVhLTlkMGRkMzZmYTY2YiIsImlzX2Fub255bW91cyI6ZmFsc2V9.Sdf0Yzmav4t2L2JpAS3Qxx3wWA7jv193CxOHlCs2J7EUdPEzjZcmtSbYhJCDH9rN9CCoaKH9mWuD4ZCZX8IQ9A",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:5000/api/dashboard/charts",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5000",
+          "path": [
+            "api",
+            "dashboard",
+            "charts"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "http://localhost:5000/api/reports",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJFUzI1NiIsImtpZCI6ImQ4ZGJkZDNkLWQ2MzMtNGE2NC1iOTMxLTQ3YTcxYTljZmExMyIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL3preWdrbGJkaXN2b2JhaG54Z2Z1LnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJzdWIiOiJjYTM2Mjg3OS03NGY3LTQ3N2EtODM4Yi03ZmJmYmEwNWZlY2UiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzkwMjcxOTU2LCJpYXQiOjE3OTAyNjgzNTYsImVtYWlsIjoiaHJAaHIuY29tIiwicGhvbmUiOiIiLCJhcHBfbWV0YWRhdGEiOnsicHJvdmlkZXIiOiJlbWFpbCIsInByb3ZpZGVycyI6WyJlbWFpbCJdfSwidXNlcl9tZXRhZGF0YSI6eyJlbWFpbF92ZXJpZmllZCI6dHJ1ZX0sInJvbGUiOiJhdXRoZW50aWNhdGVkIiwiYWFsIjoiYWFsMSIsImFtciI6W3sibWV0aG9kIjoicGFzc3dvcmQiLCJ0aW1lc3RhbXAiOjE3OTAyNjgzNTZ9XSwic2Vzc2lvbl9pZCI6IjI0ZjU1ZDZkLWJlZDgtNDgyZS05NTVhLTlkMGRkMzZmYTY2YiIsImlzX2Fub255bW91cyI6ZmFsc2V9.Sdf0Yzmav4t2L2JpAS3Qxx3wWA7jv193CxOHlCs2J7EUdPEzjZcmtSbYhJCDH9rN9CCoaKH9mWuD4ZCZX8IQ9A",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:5000/api/reports",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5000",
+          "path": [
+            "api",
+            "reports"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "http://localhost:5000/",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJFUzI1NiIsImtpZCI6ImQ4ZGJkZDNkLWQ2MzMtNGE2NC1iOTMxLTQ3YTcxYTljZmExMyIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL3preWdrbGJkaXN2b2JhaG54Z2Z1LnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJzdWIiOiJjYTM2Mjg3OS03NGY3LTQ3N2EtODM4Yi03ZmJmYmEwNWZlY2UiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzkwMjcxOTU2LCJpYXQiOjE3OTAyNjgzNTYsImVtYWlsIjoiaHJAaHIuY29tIiwicGhvbmUiOiIiLCJhcHBfbWV0YWRhdGEiOnsicHJvdmlkZXIiOiJlbWFpbCIsInByb3ZpZGVycyI6WyJlbWFpbCJdfSwidXNlcl9tZXRhZGF0YSI6eyJlbWFpbF92ZXJpZmllZCI6dHJ1ZX0sInJvbGUiOiJhdXRoZW50aWNhdGVkIiwiYWFsIjoiYWFsMSIsImFtciI6W3sibWV0aG9kIjoicGFzc3dvcmQiLCJ0aW1lc3RhbXAiOjE3OTAyNjgzNTZ9XSwic2Vzc2lvbl9pZCI6IjI0ZjU1ZDZkLWJlZDgtNDgyZS05NTVhLTlkMGRkMzZmYTY2YiIsImlzX2Fub255bW91cyI6ZmFsc2V9.Sdf0Yzmav4t2L2JpAS3Qxx3wWA7jv193CxOHlCs2J7EUdPEzjZcmtSbYhJCDH9rN9CCoaKH9mWuD4ZCZX8IQ9A",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:5000/",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5000",
+          "path": [
+            ""
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "bearer_token_050c",
+      "secret": true
+    }
+  ]
+}
