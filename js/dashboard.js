@@ -300,13 +300,18 @@ window.toggleWorkBreak = toggleWorkBreak;
 // ============================================================
 
 async function renderApp(userEmail) {
-   
+    // Pre-warm the backend on the very first call in background (non-blocking)
+    if (!window._backendWarmed) {
+        window._backendWarmed = true;
+        fetch('https://hr-and-payroll-9fz9.onrender.com/api/employees', {
+            headers: { 'ngrok-skip-browser-warning': 'true' }
+        }).then(() => console.log('🔥 Backend pre-warmed')).catch(e => console.warn('Pre-warm notice:', e.message));
+    }
+
     console.log('🔄 Rendering app for:', userEmail);
     console.log('👥 Employees in state:', window._currentEmployees?.length || 0);
     console.log('📋 Leaves in state:', window._currentLeaves?.length || 0);
     console.log('💬 Messages in state:', window._currentMessages?.length || 0);
-    
-    
 
     const container = document.getElementById('contentSections');
     const hasCachedData = (window._currentEmployees && window._currentEmployees.length > 0);
@@ -362,8 +367,10 @@ async function renderApp(userEmail) {
         console.error('Data load error:', err);
     }
 
-    const stats = await fetchDashboardStats(employees, leaves);
-    const chartData = await fetchChartData(employees);
+    const [stats, chartData] = await Promise.all([
+        fetchDashboardStats(employees, leaves),
+        fetchChartData(employees)
+    ]);
 
     window._currentEmployees = employees;
     window._currentLeaves = leaves;

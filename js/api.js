@@ -39,59 +39,70 @@ class ApiService {
     }
 
     async request(endpoint, options = {}) {
-    this.updateBaseURL();
-    const token = this.getToken();  // ✅ Get token first
-    
-    const headers = {
-        'Content-Type': 'application/json',
-        'ngrok-skip-browser-warning': 'true',  // ✅ ADD THIS BACK
-        ...(token && { 'Authorization': `Bearer ${token}` })  // ✅ Use `token` variable
-    };
+        this.updateBaseURL();
+        const token = this.getToken();
 
-    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-    const url = `${this.baseURL}${cleanEndpoint}`;
+        const headers = {
+            'Content-Type': 'application/json',
+            'ngrok-skip-browser-warning': 'true',
+            ...(token && { 'Authorization': `Bearer ${token}` })
+        };
 
-    // ✅ DEBUG LOGS — Remove after fixing
-    console.log('═══════════════════════════════════');
-    console.log(`🌐 ${options.method || 'GET'} ${url}`);
-    console.log('🔑 Token:', token ? token.substring(0, 30) + '...' : '❌ NO TOKEN');
-    console.log('📋 Auth Header:', headers.Authorization ? '✅ Present' : '❌ Missing');
-    console.log('═══════════════════════════════════');
+        const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+        const url = `${this.baseURL}${cleanEndpoint}`;
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), options.timeout || 15000);  // ✅ 15s not 6s
+        // Debug log
+        console.log(`🌐 ${options.method || 'GET'} ${url} ${options.body ? '| body: ' + options.body.substring(0, 80) : ''}`);
 
-    try {
-        const response = await fetch(url, {
-            ...options,
-            headers,
-            signal: controller.signal
-        });
-        clearTimeout(timeoutId);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), options.timeout || 90000);
 
-        const text = await response.text();
-        let data;
         try {
-            data = text ? JSON.parse(text) : {};
-        } catch (e) {
-            console.error(`❌ Non-JSON response (Status ${response.status}):`, text.substring(0, 200));
-            throw new Error(`Server returned status ${response.status} with non-JSON response.`);
-        }
+            const response = await fetch(url, {
+                ...options,
+                headers,
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
 
-        if (!response.ok) {
-            const errMsg = data.message || data.error || `API request failed with status: ${response.status}`;
-            throw new Error(errMsg);
+            const text = await response.text();
+            let data;
+            try {
+                data = text ? JSON.parse(text) : {};
+            } catch (e) {
+                console.error(`❌ Non-JSON response (Status ${response.status}):`, text.substring(0, 200));
+                throw new Error(`Server returned status ${response.status} with non-JSON response.`);
+            }
+
+            if (!response.ok) {
+                const errMsg = data.message || data.error || `API request failed with status: ${response.status}`;
+                throw new Error(errMsg);
+            }
+            return data;
+        } catch (error) {
+            clearTimeout(timeoutId);
+            if (error.name === 'AbortError') {
+                if (!options._isRetry) {
+                    console.warn(`⏳ Request to ${endpoint} timed out. Retrying with 120s timeout (Render cold start)...`);
+                    try {
+                        return await this.request(endpoint, {
+                            ...options,
+                            timeout: 120000,
+                            _isRetry: true
+                        });
+                    } catch (retryError) {
+                        if (retryError.name === 'AbortError' || retryError.message?.includes('timed out')) {
+                            throw new Error('Backend did not respond after 2 minutes.');
+                        }
+                        throw retryError;
+                    }
+                }
+                throw new Error('Backend did not respond after 2 minutes.');
+            }
+            console.error(`[ApiService Error] ${endpoint}:`, error.message);
+            throw error;
         }
-        return data;
-    } catch (error) {
-        clearTimeout(timeoutId);
-        if (error.name === 'AbortError') {
-            throw new Error(`Request timed out. Backend may be sleeping (Render free tier).`);
-        }
-        console.error(`[ApiService Error] ${endpoint}:`, error.message);
-        throw error;
     }
-}
 
     // ===== AUTH ENDPOINTS =====
     async login(email, password) {
@@ -140,8 +151,8 @@ class ApiService {
     }
 
     async updateEmployee(id, employeeData) {
-        const numericId = typeof id === 'string' && id.includes('EMP-') 
-            ? parseInt(id.replace('EMP-', '')) 
+        const numericId = typeof id === 'string' && id.includes('EMP-')
+            ? parseInt(id.replace('EMP-', ''))
             : id;
         return this.request(`/employees/${numericId}`, {
             method: 'PUT',
@@ -150,8 +161,8 @@ class ApiService {
     }
 
     async deleteEmployee(id) {
-        const numericId = typeof id === 'string' && id.includes('EMP-') 
-            ? parseInt(id.replace('EMP-', '')) 
+        const numericId = typeof id === 'string' && id.includes('EMP-')
+            ? parseInt(id.replace('EMP-', ''))
             : id;
         return this.request(`/employees/${numericId}`, {
             method: 'DELETE'
@@ -183,15 +194,19 @@ class ApiService {
         });
     }
 
-    async approveLeave(id) {
+    async approveLeave(id, comment = 'Approved by HR Management') {
+        const payload = typeof comment === 'object' ? comment : { comment: comment || 'Approved by HR Management' };
         return this.request(`/leaves/${id}/approve`, {
-            method: 'PUT'
+            method: 'PUT',
+            body: JSON.stringify(payload)
         });
     }
 
-    async rejectLeave(id) {
+    async rejectLeave(id, comment = 'Rejected by HR Management') {
+        const payload = typeof comment === 'object' ? comment : { comment: comment || 'Rejected by HR Management' };
         return this.request(`/leaves/${id}/reject`, {
-            method: 'PUT'
+            method: 'PUT',
+            body: JSON.stringify(payload)
         });
     }
 
@@ -252,3 +267,4 @@ class ApiService {
 
 window.ApiService = ApiService;
 window.api = new ApiService();
+console.log('✅ api.js loaded — approveLeave/rejectLeave now send body');

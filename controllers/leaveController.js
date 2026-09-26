@@ -318,18 +318,14 @@ const applyLeave = async (req, res) => {
       });
     }
 
-    // Notify HR
-    try {
-      if (process.env.EMAIL_USER && process.env.HR_EMAIL) {
-        await transporter.sendMail({
-          from: process.env.EMAIL_USER,
-          to: process.env.HR_EMAIL,
-          subject: "New Leave Application",
-          text: `A new leave application has been submitted.\n\nEmployee: ${employee.name}\nLeave Type: ${type}\nStart Date: ${from}\nEnd Date: ${to}\nWorking Days: ${finalDays}\nReason: ${reason}`
-        });
-      }
-    } catch (emailError) {
-      console.error("HR email notice failed:", emailError.message);
+    // Notify HR in background (non-blocking)
+    if (process.env.EMAIL_USER && process.env.HR_EMAIL) {
+      transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: process.env.HR_EMAIL,
+        subject: "New Leave Application",
+        text: `A new leave application has been submitted.\n\nEmployee: ${employee.name}\nLeave Type: ${type}\nStart Date: ${from}\nEnd Date: ${to}\nWorking Days: ${finalDays}\nReason: ${reason}`
+      }).catch(emailError => console.error("HR email notice failed:", emailError.message));
     }
 
     res.status(201).json({
@@ -401,9 +397,9 @@ const approveLeave = async (req, res) => {
       });
     }
 
-    // Notify employee
-    try {
-      await transporter.sendMail({
+    // Notify employee in background (non-blocking)
+    if (process.env.EMAIL_USER && leaveDetails.employees?.email) {
+      transporter.sendMail({
         from: process.env.EMAIL_USER,
         to: leaveDetails.employees.email,
         subject: "Leave Request Approved",
@@ -418,9 +414,7 @@ Days: ${leaveDetails.days}
 HR Comment: ${comment || "No comment"}
 
 Thank you.`
-      });
-    } catch (emailError) {
-      console.error("Employee approval email failed:", emailError.message);
+      }).catch(emailError => console.error("Employee approval email failed:", emailError.message));
     }
 
     res.json({
@@ -492,9 +486,9 @@ const rejectLeave = async (req, res) => {
       });
     }
 
-    // Notify employee
-    try {
-      await transporter.sendMail({
+    // Notify employee in background (non-blocking)
+    if (process.env.EMAIL_USER && leaveDetails.employees?.email) {
+      transporter.sendMail({
         from: process.env.EMAIL_USER,
         to: leaveDetails.employees.email,
         subject: "Leave Request Rejected",
@@ -509,9 +503,7 @@ Days: ${leaveDetails.days}
 HR Comment: ${comment || "No comment"}
 
 Please contact HR if you have any questions.`
-      });
-    } catch (emailError) {
-      console.error("Employee rejection email failed:", emailError.message);
+      }).catch(emailError => console.error("Employee rejection email failed:", emailError.message));
     }
 
     res.json({

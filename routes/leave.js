@@ -1,6 +1,8 @@
 const express = require("express");
 const router = express.Router();
 
+const authorize = require("../middleware/authorize");
+
 const {
   applyLeave,
   getMyLeaves,
@@ -9,8 +11,6 @@ const {
   approveLeave,
   rejectLeave
 } = require("../controllers/leaveController");
-
-const authorize = require("../middleware/authorize");
 
 router.post("/", authorize("admin", "hr", "employee"), applyLeave);
 router.get("/", authorize("admin", "hr", "employee"), getLeaves);

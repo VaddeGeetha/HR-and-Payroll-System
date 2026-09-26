@@ -5,8 +5,10 @@
 let activeChatRecipient = 'alex.employee@gmail.com';
 let payslipFilterMonth = 'August';
 let payslipFilterYear = '2026';
-let currentLeaveActionId = null;
-let currentLeaveActionType = null;
+var currentLeaveActionId = null;
+var currentLeaveActionType = null;
+window.currentLeaveActionId = null;
+window.currentLeaveActionType = null;
 let activeDeptThreadFilter = 'All';
 let currentChatSearchQuery = '';
 let employeeThreadSearchQuery = '';
@@ -384,14 +386,29 @@ function renderLeaves(userEmail, role, employees, leaves) {
 }
 
 function renderHRLeaveDesk(userEmail, employees, leaves) {
-    // ✅ Filter by pending status
-    const pending = (leaves || []).filter(l => l.status === 'pending');
-    const processed = (leaves || []).filter(l => l.status !== 'pending');
+    // ✅ Normalize + strict filter
+    const allLeaves = (leaves || []).map(l => 
+        (typeof window.normalizeLeave === 'function') ? window.normalizeLeave(l) : l
+    ).filter(Boolean);
+
+    // ✅ Only show truly pending leaves (exact match, case-insensitive)
+    const pending = allLeaves.filter(l => 
+        String(l.status || '').toLowerCase().trim() === 'pending'
+    );
+    
+    const processed = allLeaves.filter(l => 
+        ['approved', 'rejected'].includes(String(l.status || '').toLowerCase().trim())
+    );
 
     return `
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
             <div><h2>HR Leave Management Desk</h2><div class="subhead">Review, approve, or reject leave requests</div></div>
-            <span class="badge" style="background:#fde8e8;color:#dc3545;font-weight:700;padding:0.4rem 1rem;">${pending.length} Pending Approval</span>
+            <div style="display:flex;gap:0.5rem;align-items:center;">
+                <span class="badge" style="background:#fde8e8;color:#dc3545;font-weight:700;padding:0.4rem 1rem;">${pending.length} Pending</span>
+                <button class="btn-secondary-custom btn-sm" onclick="window.refreshLeavesFromBackend()" title="Refresh from backend">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
         </div>
         <div class="detail-list" style="margin-bottom:1.5rem;">
             <h3 style="margin:0 0 1rem 0;"><i class="fas fa-clock" style="color:#f0ad4e;margin-right:8px;"></i> Awaiting HR Action</h3>
@@ -406,16 +423,16 @@ function renderHRLeaveDesk(userEmail, employees, leaves) {
                                     <div style="display:flex;align-items:center;gap:0.6rem;">
                                         <img src="${req.photo || DEFAULT_AVATARS.male}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;"/>
                                         <div>
-                                            <strong>${req.employee}</strong>
-                                            <div style="font-size:0.75rem;color:var(--text-light);">${req.email}</div>
+                                            <strong>${req.employee || 'Unknown'}</strong>
+                                            <div style="font-size:0.75rem;color:var(--text-light);">${req.email || ''}</div>
                                         </div>
                                     </div>
                                 </td>
                                 <td><span class="badge" style="background:#e8f0fe;color:var(--primary);">${req.department || 'General'}</span></td>
-                                <td><span class="tag-pill available">${req.type}</span></td>
-                                <td>${req.from} to ${req.to}</td>
-                                <td><strong>${req.days} Day(s)</strong></td>
-                                <td style="max-width:220px;">${req.reason}</td>
+                                <td><span class="tag-pill available">${req.type || 'Leave'}</span></td>
+                                <td>${req.from || '—'} to ${req.to || '—'}</td>
+                                <td><strong>${req.days || 0} Day(s)</strong></td>
+                                <td style="max-width:220px;">${req.reason || '—'}</td>
                                 <td>
                                     <div style="display:flex;gap:0.4rem;">
                                         <button class="btn-success btn-sm" onclick="window.promptApproveLeave(${req.id})"><i class="fas fa-check"></i> Approve</button>
@@ -435,16 +452,24 @@ function renderHRLeaveDesk(userEmail, employees, leaves) {
                     <thead><tr><th>Employee</th><th>Type</th><th>Period</th><th>Days</th><th>Status</th><th>HR Comment</th></tr></thead>
                     <tbody>
                         ${processed.length === 0 ? `<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-light);">No processed leaves</td></tr>` : ''}
-                        ${processed.map(req => `
-                            <tr>
-                                <td><strong>${req.employee}</strong><div style="font-size:0.75rem;color:var(--text-light);">${req.email}</div></td>
-                                <td>${req.type}</td>
-                                <td>${req.from} to ${req.to}</td>
-                                <td>${req.days} Days</td>
-                                <td><span class="badge" style="background:${req.status==='approved'?'#d4edda':'#fde8e8'};color:${req.status==='approved'?'#155724':'#dc3545'};">${(req.status || '').toUpperCase()}</span></td>
-                                <td style="font-size:0.85rem;color:var(--text-secondary);">${req.comments.length > 0 ? req.comments.join('; ') : '—'}</td>
-                            </tr>
-                        `).join('')}
+                        ${processed.map(req => {
+                            let commentText = '—';
+                            if (Array.isArray(req.comments) && req.comments.length > 0) {
+                                commentText = req.comments.join('; ');
+                            } else if (typeof req.comments === 'string' && req.comments.trim()) {
+                                commentText = req.comments;
+                            }
+                            return `
+                                <tr>
+                                    <td><strong>${req.employee || 'Unknown'}</strong><div style="font-size:0.75rem;color:var(--text-light);">${req.email || ''}</div></td>
+                                    <td>${req.type || 'Leave'}</td>
+                                    <td>${req.from || '—'} to ${req.to || '—'}</td>
+                                    <td>${req.days || 0} Days</td>
+                                    <td><span class="badge" style="background:${req.status==='approved'?'#d4edda':'#fde8e8'};color:${req.status==='approved'?'#155724':'#dc3545'};">${(req.status || '').toUpperCase()}</span></td>
+                                    <td style="font-size:0.85rem;color:var(--text-secondary);">${commentText}</td>
+                                </tr>
+                            `;
+                        }).join('')}
                     </tbody>
                 </table>
             </div>
@@ -496,7 +521,6 @@ function renderMyLeavesSection(userEmail, role, employees, leaves) {
     const currentEmp = employees.find(e => e.email && e.email.toLowerCase() === userEmail.toLowerCase()) 
         || window.currentUser?.empData;
     
-    // ✅ Match leaves by employee_id (numeric)
     const myLeavesList = (leaves || []).filter(l => {
         if (!currentEmp) return false;
         return String(l.employee_id) === String(currentEmp.id) ||
@@ -511,27 +535,25 @@ function renderMyLeavesSection(userEmail, role, employees, leaves) {
         <div class="detail-list">
             <div class="custom-table-responsive">
                 <table class="styled-table">
-                    <thead><tr><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Reason</th><th>Status</th><th>HR Comments</th><th>Action</th></tr></thead>
+                    <thead><tr><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Reason</th><th>Status</th><th>HR Comments</th></tr></thead>
                     <tbody>
-                        ${myLeavesList.length === 0 ? `<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-light);">No leaves requested yet</td></tr>` : ''}
-                        ${myLeavesList.map(l => `
-                            <tr>
-                                <td><strong>${l.type}</strong></td>
-                                <td>${l.from}</td>
-                                <td>${l.to}</td>
-                                <td><span class="tag-pill available">${l.days} Day(s)</span></td>
-                                <td>${l.reason}</td>
-                                <td><span class="badge" style="background:${l.status==='approved'?'#d4edda':l.status==='rejected'?'#fde8e8':'#fff3cd'};color:${l.status==='approved'?'#155724':l.status==='rejected'?'#dc3545':'#856404'};">${(l.status||'pending').toUpperCase()}</span></td>
-                                <td style="font-size:0.85rem;color:var(--text-secondary);">${l.comments.length > 0 ? l.comments.join('; ') : 'Under review'}</td>
-                                <td>
-                                    ${l.status === 'pending' ? `
-                                        <button class="btn-danger btn-sm" onclick="window.deleteMyLeave(${l.id})" title="Withdraw">
-                                            <i class="fas fa-trash"></i> Withdraw
-                                        </button>
-                                    ` : '—'}
-                                </td>
-                            </tr>
-                        `).join('')}
+                        ${myLeavesList.length === 0 ? `<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-light);">No leaves requested yet</td></tr>` : ''}
+                        ${myLeavesList.map(l => {
+                            let commentText = 'Under review';
+                            if (Array.isArray(l.comments) && l.comments.length > 0) commentText = l.comments.join('; ');
+                            else if (typeof l.comments === 'string' && l.comments.trim()) commentText = l.comments;
+                            return `
+                                <tr>
+                                    <td><strong>${l.type}</strong></td>
+                                    <td>${l.from}</td>
+                                    <td>${l.to}</td>
+                                    <td><span class="tag-pill available">${l.days} Day(s)</span></td>
+                                    <td>${l.reason}</td>
+                                    <td><span class="badge" style="background:${l.status==='approved'?'#d4edda':l.status==='rejected'?'#fde8e8':'#fff3cd'};color:${l.status==='approved'?'#155724':l.status==='rejected'?'#dc3545':'#856404'};">${(l.status||'pending').toUpperCase()}</span></td>
+                                    <td style="font-size:0.85rem;color:var(--text-secondary);">${commentText}</td>
+                                </tr>
+                            `;
+                        }).join('')}
                     </tbody>
                 </table>
             </div>
@@ -1181,6 +1203,26 @@ function renderAttendance() {
 // ===== ACTION HANDLERS =====
 // ============================================================
 
+async function refreshLeavesFromBackend() {
+    try {
+        let freshLeaves = [];
+        if (typeof fetchLeaves === 'function') {
+            freshLeaves = await fetchLeaves();
+        } else if (window.api && typeof window.api.getLeaves === 'function') {
+            freshLeaves = await window.api.getLeaves();
+        }
+        window._currentLeaves = freshLeaves;
+        const email = window.currentUser?.email || window.userEmail;
+        if (email && typeof window.renderApp === 'function') {
+            await window.renderApp(email);
+        }
+        const pending = (window._currentLeaves || []).filter(l => String(l.status || '').toLowerCase().trim() === 'pending');
+        if (window.showToast) window.showToast('Success', `Refreshed! ${pending.length} pending leaves`, 'success');
+    } catch (e) {
+        if (window.showToast) window.showToast('Error', e.message || 'Failed to refresh leaves', 'error');
+    }
+}
+
 function refreshMessagesStream() {
     let userEmail = (window.currentUser?.email || window.userEmail || '').trim().toLowerCase();
     if (!userEmail) {
@@ -1320,71 +1362,196 @@ async function submitApplyLeave(event) {
     if (window.showToast) window.showToast('Success', 'Submitted!', 'success');
 }
 
-function promptApproveLeave(id) {
+async function promptApproveLeave(id) {
+    let freshLeaves = [];
+    try {
+        if (typeof fetchLeaves === 'function') {
+            freshLeaves = await fetchLeaves();
+        } else if (window.api && typeof window.api.getLeaves === 'function') {
+            freshLeaves = await window.api.getLeaves();
+        }
+        window._currentLeaves = freshLeaves;
+    } catch (e) {
+        console.warn('Error fetching fresh leaves:', e);
+        freshLeaves = window._currentLeaves || [];
+    }
+    
+    const leave = freshLeaves.find(l => String(l.id) === String(id));
+    if (!leave) {
+        if (window.showToast) window.showToast('Error', 'Leave not found', 'error');
+        const email = window.currentUser?.email || window.userEmail;
+        if (email && typeof window.renderApp === 'function') {
+            await window.renderApp(email);
+        }
+        return;
+    }
+    const status = String(leave.status || '').toLowerCase().trim();
+    if (status !== 'pending') {
+        if (window.showToast) window.showToast('Warning', `This leave is already ${status.toUpperCase()}`, 'warning');
+        const email = window.currentUser?.email || window.userEmail;
+        if (email && typeof window.renderApp === 'function') {
+            await window.renderApp(email);
+        }
+        return;
+    }
+
     currentLeaveActionId = id;
     currentLeaveActionType = 'approved';
-    document.getElementById('leaveActionModalTitle').textContent = 'Approve Leave';
-    document.getElementById('leaveActionComment').value = 'Approved by HR Management';
-    document.getElementById('leaveCommentModal').style.display = 'flex';
+    const titleEl = document.getElementById('leaveActionModalTitle');
+    const commentEl = document.getElementById('leaveActionComment');
+    if (titleEl) titleEl.textContent = 'Approve Leave Request';
+    if (commentEl) commentEl.value = 'Approved by HR Management';
+    const modal = document.getElementById('leaveCommentModal');
+    if (modal) modal.style.display = 'flex';
 }
-function promptRejectLeave(id) {
+
+async function promptRejectLeave(id) {
+    let freshLeaves = [];
+    try {
+        if (typeof fetchLeaves === 'function') {
+            freshLeaves = await fetchLeaves();
+        } else if (window.api && typeof window.api.getLeaves === 'function') {
+            freshLeaves = await window.api.getLeaves();
+        }
+        window._currentLeaves = freshLeaves;
+    } catch (e) {
+        console.warn('Error fetching fresh leaves:', e);
+        freshLeaves = window._currentLeaves || [];
+    }
+    
+    const leave = freshLeaves.find(l => String(l.id) === String(id));
+    if (!leave) {
+        if (window.showToast) window.showToast('Error', 'Leave not found', 'error');
+        const email = window.currentUser?.email || window.userEmail;
+        if (email && typeof window.renderApp === 'function') {
+            await window.renderApp(email);
+        }
+        return;
+    }
+    const status = String(leave.status || '').toLowerCase().trim();
+    if (status !== 'pending') {
+        if (window.showToast) window.showToast('Warning', `This leave is already ${status.toUpperCase()}`, 'warning');
+        const email = window.currentUser?.email || window.userEmail;
+        if (email && typeof window.renderApp === 'function') {
+            await window.renderApp(email);
+        }
+        return;
+    }
+
     currentLeaveActionId = id;
     currentLeaveActionType = 'rejected';
-    document.getElementById('leaveActionModalTitle').textContent = 'Reject Leave';
-    document.getElementById('leaveActionComment').value = 'Rejected due to project deadlines';
-    document.getElementById('leaveCommentModal').style.display = 'flex';
+    const titleEl = document.getElementById('leaveActionModalTitle');
+    const commentEl = document.getElementById('leaveActionComment');
+    if (titleEl) titleEl.textContent = 'Reject Leave Request';
+    if (commentEl) commentEl.value = 'Rejected due to project deadlines';
+    const modal = document.getElementById('leaveCommentModal');
+    if (modal) modal.style.display = 'flex';
 }
-async function confirmLeaveAction() {
-    const comment = document.getElementById('leaveActionComment')?.value.trim() || '';
 
-    if (!window.useMockData && window.api) {
-        try {
-            if (window.showToast) window.showToast('Info', 'Updating leave status...', 'info');
-            
-            if (currentLeaveActionType === 'approved') {
-                await window.api.approveLeave(currentLeaveActionId);
-            } else {
-                await window.api.rejectLeave(currentLeaveActionId);
-            }
-            
-            if (window.showToast) window.showToast('Success', `Leave ${currentLeaveActionType}!`, 'success');
-            
-            // Close modal
-            const modal = document.getElementById('leaveCommentModal');
+async function confirmLeaveAction() {
+    if (window._leaveActionPending) return;
+    window._leaveActionPending = true;
+
+    const modal = document.getElementById('leaveCommentModal');
+    const submitBtn = document.querySelector('#leaveCommentModal .btn-primary');
+    const originalBtnHTML = submitBtn ? submitBtn.innerHTML : '';
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
+    }
+
+    const email = window.currentUser?.email || window.userEmail;
+
+    try {
+        // a. Re-fetch fresh leaves from backend (await fetchLeaves()) BEFORE calling approveLeave/rejectLeave
+        let freshLeaves = [];
+        if (typeof fetchLeaves === 'function') {
+            freshLeaves = await fetchLeaves();
+        } else if (window.api && typeof window.api.getLeaves === 'function') {
+            freshLeaves = await window.api.getLeaves();
+        }
+        window._currentLeaves = freshLeaves;
+
+        // b. Find the target leave in the fresh list
+        const targetLeave = freshLeaves.find(l => String(l.id) === String(currentLeaveActionId));
+
+        // c. If the leave is not found → show error toast, close modal, refresh UI, return
+        if (!targetLeave) {
+            if (window.showToast) window.showToast('Error', 'Leave not found in backend', 'error');
             if (modal) modal.style.display = 'none';
-            
-            // ✅ FIX: Re-fetch leaves from backend, then re-render
-            if (typeof fetchLeaves === 'function') {
-                window._currentLeaves = await fetchLeaves();
-            }
-            
-            // ✅ FIX: Use window.currentUser (set by dashboard.js)
-            const email = window.currentUser?.email || window.userEmail || localStorage.getItem('user') && JSON.parse(localStorage.getItem('user')).email;
             if (email && typeof window.renderApp === 'function') {
                 await window.renderApp(email);
             }
-            
-            return;
-        } catch (e) {
-            console.error('Leave action error:', e);
-            if (window.showToast) window.showToast('Error', e.message || 'Failed', 'error');
             return;
         }
+
+        // d. If the leave's status !== 'pending' → show warning toast, close modal, refresh UI, return
+        const currentStatus = String(targetLeave.status || '').toLowerCase().trim();
+        if (currentStatus !== 'pending') {
+            if (window.showToast) {
+                window.showToast('Warning', `This leave is already ${currentStatus.toUpperCase()}`, 'warning');
+            }
+            if (modal) modal.style.display = 'none';
+            if (email && typeof window.renderApp === 'function') {
+                await window.renderApp(email);
+            }
+            return;
+        }
+
+        // e. Only if status === 'pending' → call the approve/reject API
+        if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+
+        const commentField = document.getElementById('leaveActionComment');
+        const comment = commentField ? commentField.value.trim() : (currentLeaveActionType === 'approved' ? 'Approved by HR Management' : 'Rejected by HR Management');
+
+        if (!window.useMockData && window.api) {
+            if (currentLeaveActionType === 'approved') {
+                await window.api.approveLeave(currentLeaveActionId, comment);
+            } else {
+                await window.api.rejectLeave(currentLeaveActionId, comment);
+            }
+        }
+
+        // Optimistically update local in-memory leaves list immediately for instant UI update
+        const localLeave = (window._currentLeaves || []).find(l => String(l.id) === String(currentLeaveActionId));
+        if (localLeave) {
+            localLeave.status = currentLeaveActionType;
+            if (comment) localLeave.comments = [comment];
+        }
+        if (typeof window.saveLeavesData === 'function') {
+            try {
+                window.saveLeavesData(window._currentLeaves);
+            } catch (e) {}
+        }
+
+        // f. After success → close modal, show toast, re-render app immediately
+        if (modal) modal.style.display = 'none';
+        if (window.showToast) {
+            window.showToast('Success', `Leave ${currentLeaveActionType} successfully!`, 'success');
+        }
+
+        if (email && typeof window.renderApp === 'function') {
+            await window.renderApp(email);
+        }
+
+    } catch (e) {
+        console.error('Leave action error:', e);
+        if (window.showToast) {
+            window.showToast('Error', e.message || 'Failed to update leave', 'error');
+        }
+        if (modal) modal.style.display = 'none';
+        if (email && typeof window.renderApp === 'function') {
+            await window.renderApp(email);
+        }
+    } finally {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnHTML;
+        }
+        window._leaveActionPending = false;
     }
-    // Mock fallback
-    const leaves = window._currentLeaves || [];
-    const req = leaves.find(r => String(r.id) === String(currentLeaveActionId));
-    if (req) {
-        req.status = currentLeaveActionType;
-        if (comment) req.comments = [comment];
-        window.saveLeavesData(leaves);
-        if (window.showToast) window.showToast('Success', `Leave ${currentLeaveActionType}`, 'success');
-    }
-    const modal = document.getElementById('leaveCommentModal');
-    if (modal) modal.style.display = 'none';
-    const email = window.currentUser?.email;
-    if (email && window.renderApp) await window.renderApp(email);
 }
+
 function openRunPayrollModal() { const m = document.getElementById('runPayrollModal'); if (m) m.style.display = 'flex'; }
 function handleRunPayrollSubmit(e) {
     e.preventDefault();
@@ -1404,7 +1571,6 @@ function viewPayrollSummary(month, year) {
     const employees = window._currentEmployees || [];
     let modal = document.getElementById('payrollSummaryModal');
     if (!modal) { modal = document.createElement('div'); modal.id = 'payrollSummaryModal'; modal.className = 'modal-backdrop'; document.body.appendChild(modal); }
-    const totalGross = employees.reduce((s, e) => s + (Number(e.monthly_salary) || 0), 0);
     modal.innerHTML = `
         <div style="background:var(--card-bg);border-radius:var(--radius);padding:1.8rem;max-width:960px;width:95%;max-height:90vh;overflow-y:auto;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2rem;border-bottom:1px solid var(--border);padding-bottom:0.8rem;">
@@ -1640,6 +1806,7 @@ window.renderProfile = renderProfile;
 window.renderAttendance = renderAttendance;
 
 window.refreshMessagesStream = refreshMessagesStream;
+window.refreshLeavesFromBackend = refreshLeavesFromBackend;
 window.selectChatRecipient = selectChatRecipient;
 window.filterEmployeesList = filterEmployeesList;
 window.filterDeptThreads = filterDeptThreads;
@@ -1692,3 +1859,4 @@ window.refreshCurrentSection = refreshCurrentSection;
 
 console.log('✅ renderers.js loaded with FULL features');
 console.log('   Exposed renderers:', Object.keys(window).filter(k => k.startsWith('render')).length);
+console.log('   refreshLeavesFromBackend:', typeof window.refreshLeavesFromBackend);
