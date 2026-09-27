@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+
+  hr-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    container_name: hr-payroll
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+
+  hr-frontend:
+    build:
+      context: .
+      dockerfile: frontend.Dockerfile
+    container_name: hr-payroll-frontend
+    ports:
+      - "8081:80"
+    depends_on:
+      - hr-backend
+    restart: unless-stopped
