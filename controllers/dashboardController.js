@@ -276,8 +276,89 @@ const getDashboardCharts = async (req, res) => {
   }
 };
 
+// ============================================
+// WORK FROM HOME (WFH) TRACKING CONTROLLERS
+// ============================================
+const wfhSessions = new Map();
+
+const startWFH = async (req, res) => {
+  try {
+    const userEmail = (req.user?.email || req.body?.email || "employee").toLowerCase();
+    const startTime = req.body?.startTime || Date.now();
+    const session = {
+      email: userEmail,
+      active: true,
+      startTime: startTime,
+      startDate: new Date(startTime).toISOString(),
+      endTime: null,
+      durationSeconds: 0
+    };
+    wfhSessions.set(userEmail, session);
+
+    res.json({
+      success: true,
+      data: session,
+      session,
+      message: "WFH started successfully"
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+const stopWFH = async (req, res) => {
+  try {
+    const userEmail = (req.user?.email || req.body?.email || "employee").toLowerCase();
+    const session = wfhSessions.get(userEmail) || {
+      startTime: req.body?.startTime || Date.now(),
+      active: true
+    };
+    const endTime = Date.now();
+    const durationSeconds = Math.max(0, Math.floor((endTime - (session.startTime || endTime)) / 1000));
+
+    const updatedSession = {
+      email: userEmail,
+      active: false,
+      startTime: session.startTime,
+      endTime: endTime,
+      durationSeconds: durationSeconds,
+      completedAt: new Date(endTime).toISOString()
+    };
+    wfhSessions.set(userEmail, updatedSession);
+
+    res.json({
+      success: true,
+      data: updatedSession,
+      session: updatedSession,
+      message: "WFH ended successfully"
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+const getWFHStatus = async (req, res) => {
+  try {
+    const userEmail = (req.user?.email || req.query?.email || "employee").toLowerCase();
+    const session = wfhSessions.get(userEmail) || {
+      active: false,
+      startTime: null,
+      durationSeconds: 0
+    };
+    res.json({
+      success: true,
+      data: session,
+      session
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
 
 module.exports = {
   getDashboardStats,
-  getDashboardCharts
+  getDashboardCharts,
+  startWFH,
+  stopWFH,
+  getWFHStatus
 };
