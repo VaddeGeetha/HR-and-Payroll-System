@@ -359,45 +359,130 @@ function addNotification(title, text, type = 'info', icon = 'fa-bell') {
 // ============================================================
 
 async function fetchDashboardStats(employees = [], leaves = []) {
+    let backendStats = null;
     if (!useMockData && window.api?.getDashboardStats) {
         try {
             const stats = await window.api.getDashboardStats();
-            if (stats && typeof stats === 'object' && !stats.error) return stats;
+            if (stats && typeof stats === 'object' && !stats.error) {
+                backendStats = stats.data || stats;
+            }
         } catch (e) {}
     }
     const totalEmps = employees.length;
-    const pendingLeaves = leaves.filter(l => l.status === 'pending').length;
+    const pendingLeaves = leaves.filter(l => String(l.status || '').toLowerCase().trim() === 'pending').length;
+    const approvedLeaves = leaves.filter(l => String(l.status || '').toLowerCase().trim() === 'approved').length;
+    const rejectedLeaves = leaves.filter(l => String(l.status || '').toLowerCase().trim() === 'rejected').length;
+    const totalLeaves = leaves.length;
+    const totalPayroll = employees.reduce((sum, e) => sum + (Number(e.monthly_salary) || 0), 0);
+
     return {
         totalEmployees: totalEmps,
-        totalDepartments: new Set(employees.map(e => e.department).filter(Boolean)).size,
+        totalDepartments: new Set(employees.map(e => e.department).filter(Boolean)).size || 6,
         newEmployees: employees.filter(e => e.joining_date && String(e.joining_date).includes('2024')).length,
+        leavesThisMonth: totalLeaves,
         presentToday: Math.max(0, totalEmps - pendingLeaves),
         onLeave: pendingLeaves,
         pendingLeaves: pendingLeaves,
-        totalPayroll: employees.reduce((sum, e) => sum + (Number(e.monthly_salary) || 0), 0),
+        approvedLeaves: approvedLeaves,
+        rejectedLeaves: rejectedLeaves,
+        totalPayroll: (backendStats?.monthlyPayroll && Number(backendStats.monthlyPayroll) > 0) ? Number(backendStats.monthlyPayroll) : totalPayroll,
         monthlyGrowth: 8.5,
         avgAttendance: 95.0
     };
 }
 
-async function fetchChartData(employees = []) {
+async function fetchChartData(employees = [], leaves = []) {
+    let backendCharts = null;
     if (!useMockData && window.api?.getChartData) {
         try {
             const charts = await window.api.getChartData();
-            if (charts && typeof charts === 'object' && !charts.error) return charts;
+            if (charts && typeof charts === 'object' && !charts.error) {
+                backendCharts = charts.data || charts;
+            }
         } catch (e) {}
     }
-    const deptCounts = { IT: 0, HR: 0, Finance: 0, Sales: 0, Marketing: 0, Operations: 0 };
+
+    // 1. Dynamic Department Counts (include standard + any custom active employee departments)
+    const standardDepts = ['IT', 'HR', 'Finance', 'Sales', 'Marketing', 'Operations'];
+    const allDeptsSet = new Set(standardDepts);
     employees.forEach(e => {
-        if (e.department && deptCounts[e.department] !== undefined) deptCounts[e.department]++;
+        if (e.department && typeof e.department === 'string' && e.department.trim()) {
+            allDeptsSet.add(e.department.trim());
+        }
     });
+    const departments = Array.from(allDeptsSet);
+    const departmentCounts = departments.map(dept => {
+        return employees.filter(e => e.department && e.department.trim().toLowerCase() === dept.toLowerCase()).length;
+    });
+
+    // 2. Dynamic Leave Statistics (calculated live from actual leaves dataset)
+    const approved = leaves.filter(l => String(l.status || '').toLowerCase().trim() === 'approved').length;
+    const pending = leaves.filter(l => String(l.status || '').toLowerCase().trim() === 'pending').length;
+    const rejected = leaves.filter(l => String(l.status || '').toLowerCase().trim() === 'rejected').length;
+    const totalLeaves = leaves.length;
+    const leaveStats = {
+        approved,
+        pending,
+        rejected,
+        total: totalLeaves
+    };
+
+    // 3. Dynamic Employee Growth (progression curve ending at current headcount)
+    const growthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'];
+    const totalEmps = employees.length;
+    let employeeGrowth = [];
+
+    if (backendCharts?.employeeGrowth && Array.isArray(backendCharts.employeeGrowth) && backendCharts.employeeGrowth.some(v => Number(v) > 0)) {
+        employeeGrowth = backendCharts.employeeGrowth.slice(-8);
+    } else if (totalEmps > 0) {
+        employeeGrowth = [
+            Math.max(1, Math.round(totalEmps * 0.35)),
+            Math.max(1, Math.round(totalEmps * 0.45)),
+            Math.max(1, Math.round(totalEmps * 0.55)),
+            Math.max(1, Math.round(totalEmps * 0.65)),
+            Math.max(1, Math.round(totalEmps * 0.75)),
+            Math.max(1, Math.round(totalEmps * 0.85)),
+            Math.max(1, Math.round(totalEmps * 0.95)),
+            totalEmps
+        ];
+    } else {
+        employeeGrowth = [0, 0, 0, 0, 0, 0, 0, 0];
+    }
+
+    // 4. Dynamic Monthly Payroll (progression matching total active salaries)
+    const payrollLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'];
+    const currentPayrollTotal = employees.reduce((sum, e) => sum + (Number(e.monthly_salary) || 0), 0);
+    let monthlyPayroll = [];
+
+    if (backendCharts?.monthlyPayroll && Array.isArray(backendCharts.monthlyPayroll) && backendCharts.monthlyPayroll.some(v => Number(v) > 0)) {
+        monthlyPayroll = backendCharts.monthlyPayroll.slice(-8);
+    } else if (currentPayrollTotal > 0) {
+        monthlyPayroll = employeeGrowth.map(count => {
+            if (totalEmps === 0) return 0;
+            return Math.round((count / totalEmps) * currentPayrollTotal);
+        });
+    } else {
+        monthlyPayroll = [0, 0, 0, 0, 0, 0, 0, 0];
+    }
+
+    // 5. Dynamic Attendance Statistics
+    const presentToday = Math.max(0, totalEmps - pending);
+    const attendance = {
+        present: presentToday,
+        leave: pending,
+        wfh: employees.filter(e => e.wfh_mode === true || e.is_wfh === true).length,
+        absent: 0
+    };
+
     return {
-        departments: Object.keys(deptCounts),
-        departmentCounts: Object.values(deptCounts),
-        attendance: { present: Math.max(1, employees.length - 1), leave: 1, wfh: 2, absent: 0 },
-        employeeGrowth: [2, 4, 6, 8, 10, 14, 18, Math.max(employees.length, 6)],
-        monthlyPayroll: [420000, 440000, 460000, 475000, 479000, 487000, 487000, 487000],
-        leaveStats: { pending: 2, approved: 8, rejected: 1, total: 11 }
+        departments,
+        departmentCounts,
+        attendance,
+        growthLabels,
+        employeeGrowth,
+        payrollLabels,
+        monthlyPayroll,
+        leaveStats
     };
 }
 

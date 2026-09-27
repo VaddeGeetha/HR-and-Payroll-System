@@ -85,32 +85,125 @@ function initCharts(chartData = {}) {
     });
     chartInstances = {};
 
-    // 1. Employee Growth (Line)
+    const growthLabels = chartData.growthLabels || ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'];
+    const employeeGrowth = chartData.employeeGrowth || [2, 4, 6, 8, 10, 14, 18, 22];
+    const departments = (chartData.departments && chartData.departments.length > 0)
+        ? chartData.departments
+        : ['IT', 'HR', 'Finance', 'Sales', 'Marketing', 'Operations'];
+    const departmentCounts = (chartData.departmentCounts && chartData.departmentCounts.length > 0)
+        ? chartData.departmentCounts
+        : [8, 4, 5, 6, 4, 3];
+    const payrollLabels = chartData.payrollLabels || ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'];
+    const monthlyPayroll = chartData.monthlyPayroll || [420000, 440000, 460000, 475000, 479000, 487000, 487000, 487000];
+
+    const approvedLeaves = Number(chartData.leaveStats?.approved ?? 0);
+    const pendingLeaves = Number(chartData.leaveStats?.pending ?? 0);
+    const rejectedLeaves = Number(chartData.leaveStats?.rejected ?? 0);
+    const totalLeaveCount = approvedLeaves + pendingLeaves + rejectedLeaves;
+
+    // Helper: Employee Growth Line Chart Config
+    const buildLineConfig = () => ({
+        type: 'line',
+        data: {
+            labels: growthLabels,
+            datasets: [{
+                label: 'Total Workforce',
+                data: employeeGrowth,
+                borderColor: '#1a6dff',
+                backgroundColor: 'rgba(26, 109, 255, 0.12)',
+                fill: true,
+                tension: 0.35,
+                borderWidth: 2.5,
+                pointBackgroundColor: '#1a6dff',
+                pointRadius: 4,
+                pointHoverRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            return ` Total Staff: ${ctx.raw} employees`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { precision: 0, stepSize: 1 },
+                    grid: { color: 'rgba(0,0,0,0.05)' }
+                },
+                x: {
+                    grid: { display: false }
+                }
+            }
+        }
+    });
+
+    // Helper: Monthly Payroll Bar Chart Config
+    const buildPayrollConfig = () => ({
+        type: 'bar',
+        data: {
+            labels: payrollLabels,
+            datasets: [{
+                label: 'Monthly Payroll (₹)',
+                data: monthlyPayroll,
+                backgroundColor: '#22a65e',
+                borderRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            return ` ₹${Number(ctx.raw || 0).toLocaleString('en-IN')}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(0,0,0,0.05)' },
+                    ticks: {
+                        callback: function(value) {
+                            return '₹' + (value >= 100000 ? (value / 100000).toFixed(1) + 'L' : (value / 1000).toFixed(0) + 'K');
+                        }
+                    }
+                },
+                x: {
+                    grid: { display: false }
+                }
+            }
+        }
+    });
+
+    // 1. Employee Growth (Line) - Dashboard
     const lineCtx = document.getElementById('lineChart');
     if (lineCtx) {
         try {
-            chartInstances.line = new Chart(lineCtx, {
-                type: 'line',
-                data: {
-                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'],
-                    datasets: [{
-                        label: 'Total Workforce',
-                        data: chartData.employeeGrowth || [2, 4, 6, 8, 10, 14, 18, 22],
-                        borderColor: '#1a6dff',
-                        backgroundColor: 'rgba(26, 109, 255, 0.1)',
-                        fill: true,
-                        tension: 0.35,
-                        borderWidth: 2.5
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: { legend: { display: false } },
-                    scales: { y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } } }
-                }
-            });
+            chartInstances.line = new Chart(lineCtx, buildLineConfig());
         } catch (e) {
             console.warn('Line chart init notice:', e.message);
+        }
+    }
+
+    // Reports Employee Growth (Line)
+    const reportsLineCtx = document.getElementById('reportsLineChart');
+    if (reportsLineCtx) {
+        try {
+            chartInstances.reportsLine = new Chart(reportsLineCtx, buildLineConfig());
+        } catch (e) {
+            console.warn('Reports line chart init notice:', e.message);
         }
     }
 
@@ -118,21 +211,43 @@ function initCharts(chartData = {}) {
     const barCtx = document.getElementById('barChart');
     if (barCtx) {
         try {
+            const palette = ['#1a6dff', '#22a65e', '#f0ad4e', '#d9534f', '#6f42c1', '#17a2b8', '#e83e8c', '#fd7e14', '#20c997', '#6c757d'];
+            const bgColors = departments.map((_, idx) => palette[idx % palette.length]);
+
             chartInstances.bar = new Chart(barCtx, {
                 type: 'bar',
                 data: {
-                    labels: chartData.departments || ['IT', 'HR', 'Finance', 'Sales', 'Marketing', 'Operations'],
+                    labels: departments,
                     datasets: [{
                         label: 'Staff Count',
-                        data: chartData.departmentCounts || [8, 4, 5, 6, 4, 3],
-                        backgroundColor: ['#1a6dff', '#22a65e', '#f0ad4e', '#d9534f', '#6f42c1', '#17a2b8'],
+                        data: departmentCounts,
+                        backgroundColor: bgColors,
                         borderRadius: 6
                     }]
                 },
                 options: {
                     responsive: true,
-                    plugins: { legend: { display: false } },
-                    scales: { y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } } }
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(ctx) {
+                                    return ` Staff: ${ctx.raw} members`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { precision: 0, stepSize: 1 },
+                            grid: { color: 'rgba(0,0,0,0.05)' }
+                        },
+                        x: {
+                            grid: { display: false }
+                        }
+                    }
                 }
             });
         } catch (e) {
@@ -144,19 +259,33 @@ function initCharts(chartData = {}) {
     const pieCtx = document.getElementById('pieChart');
     if (pieCtx) {
         try {
+            const pieData = (totalLeaveCount === 0) ? [0, 0, 0] : [approvedLeaves, pendingLeaves, rejectedLeaves];
             chartInstances.pie = new Chart(pieCtx, {
                 type: 'doughnut',
                 data: {
                     labels: ['Approved Leaves', 'Pending Approvals', 'Rejected'],
                     datasets: [{
-                        data: [8, 2, 1],
+                        data: pieData,
                         backgroundColor: ['#22a65e', '#f0ad4e', '#d9534f'],
-                        borderWidth: 2
+                        borderWidth: 2,
+                        hoverOffset: 4
                     }]
                 },
                 options: {
                     responsive: true,
-                    plugins: { legend: { position: 'bottom' } }
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(ctx) {
+                                    const val = Number(ctx.raw || 0);
+                                    const pct = totalLeaveCount > 0 ? Math.round((val / totalLeaveCount) * 100) : 0;
+                                    return ` ${ctx.label}: ${val} (${pct}%)`;
+                                }
+                            }
+                        }
+                    }
                 }
             });
         } catch (e) {
@@ -164,29 +293,23 @@ function initCharts(chartData = {}) {
         }
     }
 
-    // 4. Payroll Trend (Bar)
+    // 4. Payroll Trend (Bar) - Dashboard
     const payrollCtx = document.getElementById('payrollChart');
     if (payrollCtx) {
         try {
-            chartInstances.payroll = new Chart(payrollCtx, {
-                type: 'bar',
-                data: {
-                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'],
-                    datasets: [{
-                        label: 'Monthly Payroll (₹)',
-                        data: chartData.monthlyPayroll || [420000, 440000, 460000, 475000, 479000, 487000, 487000, 487000],
-                        backgroundColor: '#22a65e',
-                        borderRadius: 6
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: { legend: { display: false } },
-                    scales: { y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } } }
-                }
-            });
+            chartInstances.payroll = new Chart(payrollCtx, buildPayrollConfig());
         } catch (e) {
             console.warn('Payroll chart init notice:', e.message);
+        }
+    }
+
+    // Reports Payroll Trend (Bar)
+    const reportsPayrollCtx = document.getElementById('reportsPayrollChart');
+    if (reportsPayrollCtx) {
+        try {
+            chartInstances.reportsPayroll = new Chart(reportsPayrollCtx, buildPayrollConfig());
+        } catch (e) {
+            console.warn('Reports payroll chart init notice:', e.message);
         }
     }
 }
@@ -205,7 +328,14 @@ function switchSection(id) {
     if (sidebar) sidebar.classList.remove('open');
     
     if (id === 'dashboard' || id === 'reports') {
-        fetchChartData().then(data => initCharts(data));
+        const emps = window._currentEmployees || [];
+        const lvs = window._currentLeaves || [];
+        if (typeof fetchChartData === 'function') {
+            fetchChartData(emps, lvs).then(data => {
+                window._currentChartData = data;
+                initCharts(data);
+            });
+        }
     }
 }
 
@@ -611,7 +741,7 @@ async function renderApp(userEmail) {
 
     const [stats, chartData] = await Promise.all([
         fetchDashboardStats(employees, leaves),
-        fetchChartData(employees)
+        fetchChartData(employees, leaves)
     ]);
 
     window._currentEmployees = employees;
@@ -693,25 +823,24 @@ async function renderApp(userEmail) {
     if (container) {
         container.innerHTML = '';
         const renderers = {
-    dashboard: window.renderDashboard || renderFallback,
-    employees: window.renderEmployees || renderFallback,
-    departments: window.renderDepartments || renderFallback,
-    leaves: window.renderLeaves || renderFallback,
-    apply_leave: window.renderApplyLeaveSection || renderFallback,
-    my_leaves: window.renderMyLeavesSection || renderFallback,
-    leave_balance: window.renderLeaveBalanceSection || renderFallback,
-    payroll: window.renderPayroll || renderFallback,
-    my_payslips: window.renderMyPayslipsSection || renderFallback,
-    reports: window.renderReports || renderFallback,
-    messages: window.renderMessages || renderFallback,
-    profile: window.renderProfile || renderFallback,
-    attendance: window.renderAttendance || renderFallback
-};
+            dashboard: window.renderDashboard || renderFallback,
+            employees: window.renderEmployees || renderFallback,
+            departments: window.renderDepartments || renderFallback,
+            leaves: window.renderLeaves || renderFallback,
+            apply_leave: window.renderApplyLeaveSection || renderFallback,
+            my_leaves: window.renderMyLeavesSection || renderFallback,
+            leave_balance: window.renderLeaveBalanceSection || renderFallback,
+            payroll: window.renderPayroll || renderFallback,
+            my_payslips: window.renderMyPayslipsSection || renderFallback,
+            reports: window.renderReports || renderFallback,
+            messages: window.renderMessages || renderFallback,
+            profile: window.renderProfile || renderFallback,
+            attendance: window.renderAttendance || renderFallback
+        };
 
-function renderFallback() {
-    return '<div style="padding:2rem;text-align:center;color:#dc3545;"><h3>⚠️ Section Failed to Load</h3><p>renderers.js did not load properly. Check F12 Console for earlier errors.</p></div>';
-}
-
+        function renderFallback() {
+            return '<div style="padding:2rem;text-align:center;color:#dc3545;"><h3>⚠️ Section Failed to Load</h3><p>renderers.js did not load properly. Check F12 Console for earlier errors.</p></div>';
+        }
 
         Object.keys(renderers).forEach(key => {
             const div = document.createElement('div');
@@ -742,6 +871,22 @@ function renderCurrentSectionFromState() {
     const role = window.currentUser?.role || getRole(userEmail);
     const employees = window._currentEmployees || [];
     const leaves = window._currentLeaves || [];
+
+    // Recalculate stats & chart data synchronously from latest state
+    if (typeof fetchDashboardStats === 'function') {
+        fetchDashboardStats(employees, leaves).then(st => {
+            window._currentStats = st;
+        });
+    }
+    if (typeof fetchChartData === 'function') {
+        fetchChartData(employees, leaves).then(cd => {
+            window._currentChartData = cd;
+            if (currentSection === 'dashboard' || currentSection === 'reports') {
+                initCharts(cd);
+            }
+        });
+    }
+
     const stats = window._currentStats || {};
     const chartData = window._currentChartData || {};
 
@@ -761,6 +906,10 @@ function renderCurrentSectionFromState() {
         attendance: window.renderAttendance || renderFallback
     };
 
+    function renderFallback() {
+        return '<div style="padding:2rem;text-align:center;color:#dc3545;"><h3>⚠️ Section Failed to Load</h3><p>renderers.js did not load properly. Check F12 Console for earlier errors.</p></div>';
+    }
+
     Object.keys(renderers).forEach(key => {
         const div = document.getElementById(`section-${key}`);
         if (div) {
@@ -771,6 +920,12 @@ function renderCurrentSectionFromState() {
             }
         }
     });
+
+    if (currentSection === 'dashboard' || currentSection === 'reports') {
+        setTimeout(() => {
+            if (window._currentChartData) initCharts(window._currentChartData);
+        }, 100);
+    }
 }
 
 window.renderCurrentSectionFromState = renderCurrentSectionFromState;
