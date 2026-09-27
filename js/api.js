@@ -51,8 +51,7 @@ class ApiService {
         const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
         const url = `${this.baseURL}${cleanEndpoint}`;
 
-        // Debug log
-        console.log(`🌐 ${options.method || 'GET'} ${url} ${options.body ? '| body: ' + options.body.substring(0, 80) : ''}`);
+        console.log(`🌐 ${options.method || 'GET'} ${url}${options.body ? ' | body: ' + options.body.substring(0, 80) : ''}`);
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), options.timeout || 90000);
@@ -81,9 +80,11 @@ class ApiService {
             return data;
         } catch (error) {
             clearTimeout(timeoutId);
+
+            // ✅ Retry once on timeout (Render cold-start)
             if (error.name === 'AbortError') {
                 if (!options._isRetry) {
-                    console.warn(`⏳ Request to ${endpoint} timed out. Retrying with 120s timeout (Render cold start)...`);
+                    console.warn(`⏳ Timeout on ${endpoint}. Retrying with 120s timeout...`);
                     try {
                         return await this.request(endpoint, {
                             ...options,
@@ -99,6 +100,7 @@ class ApiService {
                 }
                 throw new Error('Backend did not respond after 2 minutes.');
             }
+
             console.error(`[ApiService Error] ${endpoint}:`, error.message);
             throw error;
         }
@@ -194,16 +196,22 @@ class ApiService {
         });
     }
 
+    // ✅ Clean approve — no orphaned code
     async approveLeave(id, comment = 'Approved by HR Management') {
-        const payload = typeof comment === 'object' ? comment : { comment: comment || 'Approved by HR Management' };
+        const payload = typeof comment === 'object'
+            ? comment
+            : { comment: comment || 'Approved by HR Management' };
         return this.request(`/leaves/${id}/approve`, {
             method: 'PUT',
             body: JSON.stringify(payload)
         });
     }
 
+    // ✅ Clean reject — no orphaned code
     async rejectLeave(id, comment = 'Rejected by HR Management') {
-        const payload = typeof comment === 'object' ? comment : { comment: comment || 'Rejected by HR Management' };
+        const payload = typeof comment === 'object'
+            ? comment
+            : { comment: comment || 'Rejected by HR Management' };
         return this.request(`/leaves/${id}/reject`, {
             method: 'PUT',
             body: JSON.stringify(payload)
