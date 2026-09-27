@@ -408,19 +408,51 @@ function renderEmployees(userEmail, role, employees) {
                         </div>
                     </div>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
-                        <div class="input-group" style="margin:0;"><label>Full Name *</label><input type="text" id="empName" required placeholder="Legal full name"></div>
-                        <div class="input-group" style="margin:0;"><label>Email (Permanent) *</label><input type="email" id="empEmail" required placeholder="employee@company.com"></div>
-                        <div class="input-group" style="margin:0;"><label>Phone *</label><input type="tel" id="empPhone" maxlength="10" required placeholder="9876543210"></div>
-                        <div class="input-group" style="margin:0;"><label>Gender *</label><select id="empGender" required style="width:100%;padding:0.65rem;border:2px solid var(--border);border-radius:var(--radius-sm);"><option>Male</option><option>Female</option><option>Other</option></select></div>
+                        <div class="input-group" style="margin:0;">
+                            <label>Full Name *</label>
+                            <input type="text" id="empName" required placeholder="Legal full name" oninput="window.validateNameInput(this)">
+                            <div id="empNameMsg" style="font-size:0.72rem;margin-top:2px;min-height:15px;font-weight:600;"></div>
+                        </div>
+                        <div class="input-group" style="margin:0;">
+                            <label>Email (Permanent) *</label>
+                            <input type="email" id="empEmail" required placeholder="employee@company.com" oninput="window.validateEmailInput(this)">
+                            <div id="empEmailMsg" style="font-size:0.72rem;margin-top:2px;min-height:15px;font-weight:600;"></div>
+                        </div>
+                        <div class="input-group" style="margin:0;">
+                            <label>Phone (10 Digits) *</label>
+                            <input type="tel" id="empPhone" maxlength="10" required placeholder="9876543210" oninput="window.validatePhoneInput(this)">
+                            <div id="empPhoneMsg" style="font-size:0.72rem;margin-top:2px;min-height:15px;font-weight:600;"></div>
+                        </div>
+                        <div class="input-group" style="margin:0;">
+                            <label>Gender *</label>
+                            <select id="empGender" required style="width:100%;padding:0.65rem;border:2px solid var(--border);border-radius:var(--radius-sm);"><option>Male</option><option>Female</option><option>Other</option></select>
+                        </div>
                         <div class="input-group" style="margin:0;"><label>DOB *</label><input type="date" id="empDob" required></div>
                         <div class="input-group" style="margin:0;"><label>DOJ *</label><input type="date" id="empJoiningDate" required></div>
-                        <div class="input-group" style="margin:0;"><label>Department *</label><select id="empDepartment" required onchange="window.handleDeptChange(this.value)" style="width:100%;padding:0.65rem;border:2px solid var(--border);border-radius:var(--radius-sm);"><option>IT</option><option>HR</option><option>Finance</option><option>Sales</option><option>Marketing</option><option>Operations</option></select></div>
-                        <div class="input-group" style="margin:0;"><label>Designation *</label><select id="empDesignation" required style="width:100%;padding:0.65rem;border:2px solid var(--border);border-radius:var(--radius-sm);"></select></div>
-                        <div class="input-group" style="margin:0;"><label>Employment Type *</label><select id="empEmploymentType" required style="width:100%;padding:0.65rem;border:2px solid var(--border);border-radius:var(--radius-sm);"><option>Full-Time</option><option>Part-Time</option><option>Contract</option></select></div>
+                        <div class="input-group" style="margin:0;">
+                            <label>Department *</label>
+                            <select id="empDepartment" required onchange="window.handleDeptChange(this.value)" style="width:100%;padding:0.65rem;border:2px solid var(--border);border-radius:var(--radius-sm);"><option>IT</option><option>HR</option><option>Finance</option><option>Sales</option><option>Marketing</option><option>Operations</option></select>
+                        </div>
+                        <div class="input-group" style="margin:0;">
+                            <label>Designation *</label>
+                            <select id="empDesignation" required style="width:100%;padding:0.65rem;border:2px solid var(--border);border-radius:var(--radius-sm);"></select>
+                        </div>
+                        <div class="input-group" style="margin:0;">
+                            <label>Employment Type *</label>
+                            <select id="empEmploymentType" required style="width:100%;padding:0.65rem;border:2px solid var(--border);border-radius:var(--radius-sm);"><option>Full-Time</option><option>Part-Time</option><option>Contract</option></select>
+                        </div>
                         <div class="input-group" style="margin:0;"><label>Annual CTC (LPA) *</label><input type="text" id="empAnnualCtc" required placeholder="e.g., 9.00"></div>
                         <div class="input-group" style="margin:0;"><label>Monthly Salary (₹) *</label><input type="number" id="empSalary" required placeholder="75000" oninput="window.calculatePayrollPreview(this.value)"/></div>
-                        <div class="input-group" style="margin:0;"><label>PAN *</label><input type="text" id="empPan" maxlength="10" required style="text-transform:uppercase;"></div>
-                        <div class="input-group" style="margin:0;"><label>Aadhaar *</label><input type="text" id="empAadhaar" required placeholder="XXXX XXXX XXXX"></div>
+                        <div class="input-group" style="margin:0;">
+                            <label>PAN (10-Char e.g. ABCPE1234F) *</label>
+                            <input type="text" id="empPan" maxlength="10" required style="text-transform:uppercase;" placeholder="ABCPE1234F" oninput="window.validatePanInput(this)">
+                            <div id="empPanMsg" style="font-size:0.72rem;margin-top:2px;min-height:15px;font-weight:600;"></div>
+                        </div>
+                        <div class="input-group" style="margin:0;">
+                            <label>Aadhaar (12 Digits - Verhoeff Check) *</label>
+                            <input type="text" id="empAadhaar" maxlength="14" required placeholder="XXXX XXXX XXXX" oninput="window.formatAadhaarInput(this); window.validateAadhaarInput(this)">
+                            <div id="empAadhaarMsg" style="font-size:0.72rem;margin-top:2px;min-height:15px;font-weight:600;"></div>
+                        </div>
                         <div class="input-group" style="margin:0;grid-column:1/-1;"><label>Address</label><input type="text" id="empAddress"></div>
                         <div class="input-group" style="margin:0;"><label>Bank Name</label><input type="text" id="empBankName"></div>
                         <div class="input-group" style="margin:0;"><label>Bank Account</label><input type="text" id="empBankAccount"></div>
@@ -1958,6 +1990,134 @@ function handlePayslipFilterChange() {
     if (window.refreshCurrentSection) window.refreshCurrentSection();
 }
 
+// ===== STATUTORY VALIDATION ENGINES (AADHAAR, PAN, PHONE) =====
+// ============================================================
+
+// Verhoeff Algorithm Tables for Indian Aadhaar Checksum Verification
+const VERHOEFF_D = [
+    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+    [1, 2, 3, 4, 0, 6, 7, 8, 9, 5],
+    [2, 3, 4, 0, 1, 7, 8, 9, 5, 6],
+    [3, 4, 0, 1, 2, 8, 9, 5, 6, 7],
+    [4, 0, 1, 2, 3, 9, 5, 6, 7, 8],
+    [5, 9, 8, 7, 6, 0, 4, 3, 2, 1],
+    [6, 5, 9, 8, 7, 1, 0, 4, 3, 2],
+    [7, 6, 5, 9, 8, 2, 1, 0, 4, 3],
+    [8, 7, 6, 5, 9, 3, 2, 1, 0, 4],
+    [9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
+];
+
+const VERHOEFF_P = [
+    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+    [1, 5, 7, 6, 2, 8, 3, 0, 9, 4],
+    [5, 8, 0, 3, 7, 9, 6, 1, 4, 2],
+    [8, 9, 1, 6, 0, 4, 3, 5, 2, 7],
+    [9, 4, 5, 3, 1, 2, 6, 8, 7, 0],
+    [4, 2, 8, 6, 5, 7, 3, 9, 0, 1],
+    [2, 7, 9, 3, 8, 0, 6, 4, 1, 5],
+    [7, 0, 4, 6, 9, 1, 3, 2, 5, 8]
+];
+
+function validateVerhoeff(numStr) {
+    let c = 0;
+    const myArray = String(numStr).split('').map(Number).reverse();
+    for (let i = 0; i < myArray.length; i++) {
+        c = VERHOEFF_D[c][VERHOEFF_P[i % 8][myArray[i]]];
+    }
+    return c === 0;
+}
+
+// 1. Aadhaar Validator (Real vs Fake Check, takes upto 12 digits only)
+function validateAadhaarNumber(aadhaarInput) {
+    if (!aadhaarInput) return { valid: false, message: 'Aadhaar number is required.' };
+    const clean = String(aadhaarInput).replace(/\D/g, '');
+    
+    if (clean.length === 0) {
+        return { valid: false, message: 'Aadhaar number is required.' };
+    }
+    if (clean.length < 12) {
+        return { valid: false, message: `Aadhaar must be exactly 12 digits (currently ${clean.length}/12).` };
+    }
+    if (clean.length > 12) {
+        return { valid: false, message: `Aadhaar takes upto 12 digits only (entered ${clean.length}).` };
+    }
+    if (clean[0] === '0' || clean[0] === '1') {
+        return { valid: false, message: 'Fake / Invalid Aadhaar: Cannot start with 0 or 1.' };
+    }
+    if (/^(\d)\1{11}$/.test(clean)) {
+        return { valid: false, message: 'Fake Aadhaar detected: Cannot have all identical repeating digits.' };
+    }
+    if (clean === '123456789012' || clean === '987654321098' || clean === '234567890123') {
+        return { valid: false, message: 'Fake Aadhaar detected: Dummy sequential number.' };
+    }
+    if (!validateVerhoeff(clean)) {
+        return { valid: false, message: 'Fake Aadhaar detected: Failed official Verhoeff mathematical checksum.' };
+    }
+    return {
+        valid: true,
+        clean,
+        formatted: clean.replace(/(\d{4})(\d{4})(\d{4})/, '$1 $2 $3'),
+        message: 'Real Aadhaar Verified (Verhoeff Checksum OK)'
+    };
+}
+
+// 2. PAN Validator
+function validatePanNumber(panInput) {
+    if (!panInput) return { valid: false, message: 'PAN number is required.' };
+    const clean = String(panInput).trim().toUpperCase();
+    
+    if (clean.length === 0) {
+        return { valid: false, message: 'PAN number is required.' };
+    }
+    if (clean.length !== 10) {
+        return { valid: false, message: `PAN must be exactly 10 characters (currently ${clean.length}/10, e.g. ABCPE1234F).` };
+    }
+    if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(clean)) {
+        return { valid: false, message: 'Invalid PAN format: Must be 5 uppercase letters, 4 digits, 1 letter (e.g. ABCPE1234F).' };
+    }
+    const valid4th = ['P', 'C', 'H', 'F', 'A', 'T', 'B', 'L', 'J', 'G'];
+    if (!valid4th.includes(clean[3])) {
+        return { valid: false, message: `Invalid PAN 4th character '${clean[3]}': Must represent valid entity (P for Individual, C for Company, etc.).` };
+    }
+    if (clean.slice(5, 9) === '0000') {
+        return { valid: false, message: 'Invalid PAN: Numeric component cannot be 0000.' };
+    }
+    return { valid: true, clean, message: 'Valid PAN Structure' };
+}
+
+// 3. Indian Mobile Phone Number Validator
+function validatePhoneNumber(phoneInput) {
+    if (!phoneInput) return { valid: false, message: 'Phone number is required.' };
+    let clean = String(phoneInput).replace(/\D/g, '');
+    if (clean.startsWith('91') && clean.length === 12) {
+        clean = clean.slice(2);
+    } else if (clean.startsWith('0') && clean.length === 11) {
+        clean = clean.slice(1);
+    }
+    
+    if (clean.length === 0) {
+        return { valid: false, message: 'Phone number is required.' };
+    }
+    if (clean.length < 10) {
+        return { valid: false, message: `Phone number must be 10 digits (currently ${clean.length}/10).` };
+    }
+    if (clean.length > 10) {
+        return { valid: false, message: `Phone number cannot exceed 10 digits (entered ${clean.length}).` };
+    }
+    if (!/^[6-9]/.test(clean)) {
+        return { valid: false, message: 'Invalid Indian mobile: Must start with 6, 7, 8, or 9.' };
+    }
+    if (/^(\d)\1{9}$/.test(clean)) {
+        return { valid: false, message: 'Fake phone number detected: Cannot have all identical digits.' };
+    }
+    return {
+        valid: true,
+        clean,
+        formatted: '+91 ' + clean,
+        message: 'Valid Indian Mobile (+91)'
+    };
+}
+
 // ===== EMPLOYEE CRUD =====
 function showAddEmployeeModal() {
     const modal = document.getElementById('addEmployeeModal');
@@ -1966,9 +2126,11 @@ function showAddEmployeeModal() {
     document.getElementById('employeeModalTitle').innerHTML = '<i class="fas fa-user-plus" style="color:var(--primary);margin-right:8px;"></i> Add New Employee';
     document.getElementById('editEmployeeId').value = '';
     document.getElementById('employeeForm').reset();
+    clearValidationStates();
     setModalPhoto(DEFAULT_AVATARS.male);
     handleDeptChange('IT');
 }
+
 function editEmployee(id) {
     const list = window._currentEmployees || [];
     const emp = list.find(e => String(e.id) === String(id));
@@ -1987,7 +2149,7 @@ function editEmployee(id) {
     document.getElementById('empDepartment').value = emp.department || 'IT';
     handleDeptChange(emp.department || 'IT', emp.designation);
     document.getElementById('empEmploymentType').value = emp.employment_type || 'Full-Time';
-    document.getElementById('empAnnualCtc').value = emp.annual_ctc || '9.00';
+    document.getElementById('empAnnualCtc').value = emp.annual_ctc ? String(emp.annual_ctc).replace(/[^0-9.]/g, '') : '9.00';
     document.getElementById('empSalary').value = emp.monthly_salary || 50000;
     document.getElementById('empPan').value = emp.pan || '';
     document.getElementById('empAadhaar').value = emp.aadhaar || '';
@@ -1995,18 +2157,78 @@ function editEmployee(id) {
     document.getElementById('empBankName').value = emp.bank_details?.bank_name || '';
     document.getElementById('empBankAccount').value = emp.bank_details?.account_number || '';
     setModalPhoto(emp.photo || DEFAULT_AVATARS.male);
+
+    setTimeout(() => {
+        validateNameInput();
+        validateEmailInput();
+        validatePhoneInput();
+        validatePanInput();
+        validateAadhaarInput();
+    }, 50);
 }
+
 async function saveEmployee(event) {
     event.preventDefault();
-    const id = document.getElementById('editEmployeeId').value;
-    const name = document.getElementById('empName').value.trim();
-    const email = document.getElementById('empEmail').value.trim();
-    const phone = '+91 ' + document.getElementById('empPhone').value.replace(/\D/g, '');
-    const ctcInput = document.getElementById('empAnnualCtc').value.trim();
+    const id = document.getElementById('editEmployeeId')?.value;
+    const name = document.getElementById('empName')?.value?.trim() || '';
+    const email = document.getElementById('empEmail')?.value?.trim() || '';
+    const rawPhone = document.getElementById('empPhone')?.value || '';
+    const rawPan = document.getElementById('empPan')?.value || '';
+    const rawAadhaar = document.getElementById('empAadhaar')?.value || '';
+    const ctcInput = document.getElementById('empAnnualCtc')?.value?.trim() || '';
     const ctcNum = parseFloat(ctcInput.replace(/[^\d.]/g, ''));
-    if (!name || !email || !ctcNum) { if (window.showToast) window.showToast('Error', 'Fill required fields', 'error'); return; }
+
+    if (!name || name.length < 2) {
+        if (window.showToast) window.showToast('Validation Error', 'Full Name is required (minimum 2 characters).', 'error');
+        document.getElementById('empName')?.focus();
+        validateNameInput();
+        return;
+    }
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        if (window.showToast) window.showToast('Validation Error', 'A valid permanent email address is required.', 'error');
+        document.getElementById('empEmail')?.focus();
+        validateEmailInput();
+        return;
+    }
+
+    // 1. Phone number strict validation
+    const phoneRes = validatePhoneNumber(rawPhone);
+    if (!phoneRes.valid) {
+        if (window.showToast) window.showToast('Invalid Phone Number', phoneRes.message, 'error');
+        document.getElementById('empPhone')?.focus();
+        validatePhoneInput();
+        return;
+    }
+
+    if (!ctcNum || isNaN(ctcNum) || ctcNum <= 0) {
+        if (window.showToast) window.showToast('Validation Error', 'Annual CTC must be a positive number (in LPA).', 'error');
+        document.getElementById('empAnnualCtc')?.focus();
+        return;
+    }
+
+    // 2. PAN number strict validation
+    const panRes = validatePanNumber(rawPan);
+    if (!panRes.valid) {
+        if (window.showToast) window.showToast('Invalid PAN Number', panRes.message, 'error');
+        document.getElementById('empPan')?.focus();
+        validatePanInput();
+        return;
+    }
+
+    // 3. Aadhaar number strict validation (Verhoeff Algorithm Checksum)
+    const aadhaarRes = validateAadhaarNumber(rawAadhaar);
+    if (!aadhaarRes.valid) {
+        if (window.showToast) window.showToast('Invalid Aadhaar Number', aadhaarRes.message, 'error');
+        document.getElementById('empAadhaar')?.focus();
+        validateAadhaarInput();
+        return;
+    }
+
     const payload = {
-        name, email, phone,
+        name,
+        email,
+        phone: phoneRes.formatted,
         gender: document.getElementById('empGender').value,
         dob: document.getElementById('empDob').value,
         joining_date: document.getElementById('empJoiningDate').value,
@@ -2016,17 +2238,21 @@ async function saveEmployee(event) {
         employment_type: document.getElementById('empEmploymentType').value,
         annual_ctc: Math.round(ctcNum * 100000),
         monthly_salary: parseInt(document.getElementById('empSalary').value) || 75000,
-        pan: document.getElementById('empPan').value.toUpperCase(),
-        aadhaar: document.getElementById('empAadhaar').value,
+        pan: panRes.clean,
+        aadhaar: aadhaarRes.formatted,
         address: document.getElementById('empAddress').value,
         photo: document.getElementById('modalEmpPhotoPreview')?.src,
-        bank_details: { bank_name: document.getElementById('empBankName').value, account_number: document.getElementById('empBankAccount').value }
+        bank_details: {
+            bank_name: document.getElementById('empBankName').value,
+            account_number: document.getElementById('empBankAccount').value
+        }
     };
+
     if (!window.useMockData && window.api) {
         try {
             if (id) await window.api.updateEmployee(id, payload);
             else await window.api.addEmployee(payload);
-            if (window.showToast) window.showToast('Success', id ? 'Updated!' : 'Added!', 'success');
+            if (window.showToast) window.showToast('Success', id ? 'Employee updated successfully!' : 'Employee added successfully!', 'success');
             document.getElementById('addEmployeeModal').style.display = 'none';
             if (window.renderApp) await window.renderApp(window.currentUser?.email);
             return;
@@ -2035,13 +2261,20 @@ async function saveEmployee(event) {
             return;
         }
     }
+
     const employees = window._currentEmployees || [];
-    if (id) { const emp = employees.find(e => String(e.id) === String(id)); if (emp) Object.assign(emp, payload); }
-    else { employees.push({ id: Date.now(), ...payload, status: 'active', leave_balances: {} }); }
+    if (id) {
+        const emp = employees.find(e => String(e.id) === String(id));
+        if (emp) Object.assign(emp, payload);
+    } else {
+        employees.push({ id: Date.now(), ...payload, status: 'active', leave_balances: {} });
+    }
     window._currentEmployees = employees;
     document.getElementById('addEmployeeModal').style.display = 'none';
+    if (window.showToast) window.showToast('Success', id ? 'Employee updated successfully!' : 'Employee added successfully!', 'success');
     if (window.renderApp) await window.renderApp(window.currentUser?.email);
 }
+
 async function deleteEmployee(id) {
     if (!confirm('Delete this employee?')) return;
     if (!window.useMockData && window.api) {
@@ -2053,12 +2286,14 @@ async function deleteEmployee(id) {
         } catch(e) { if (window.showToast) window.showToast('Error', e.message, 'error'); return; }
     }
 }
+
 function searchEmployees() {
     const term = document.getElementById('employeeSearchInput')?.value.toLowerCase() || '';
     document.querySelectorAll('.employee-card').forEach(c => {
         c.style.display = c.textContent.toLowerCase().includes(term) ? '' : 'none';
     });
 }
+
 function clearSearch() { const i = document.getElementById('employeeSearchInput'); if (i) i.value = ''; searchEmployees(); }
 function handleDeptChange(deptName, target = '') {
     const sel = document.getElementById('empDesignation');
@@ -2066,20 +2301,140 @@ function handleDeptChange(deptName, target = '') {
     const opts = window.DEPARTMENT_DESIGNATIONS?.[deptName] || window.DEPARTMENT_DESIGNATIONS?.['IT'] || [];
     sel.innerHTML = opts.map(d => `<option value="${d}" ${d === target ? 'selected' : ''}>${d}</option>`).join('');
 }
+
 function setModalPhoto(url) { const p = document.getElementById('modalEmpPhotoPreview'); if (p) p.src = url; }
 function handleModalPhotoUpload(e) { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = ev => setModalPhoto(ev.target.result); r.readAsDataURL(f); }
 function calculatePayrollPreview() {}
-function validateNameInput() { return true; }
-function validateEmailInput() { return true; }
-function validatePhoneInput() { return true; }
-function validatePanInput() { return true; }
-function validateAadhaarInput() { return true; }
-function clearValidationStates() {}
+
+// ===== LIVE STATUTORY INPUT VALIDATION HANDLERS =====
+function formatAadhaarInput(el) {
+    const input = el || document.getElementById('empAadhaar');
+    if (!input) return;
+    const raw = input.value.replace(/\D/g, '').slice(0, 12); // takes upto 12 digits only
+    const parts = [];
+    for (let i = 0; i < raw.length; i += 4) {
+        parts.push(raw.substring(i, i + 4));
+    }
+    input.value = parts.join(' ');
+}
+
+function validateAadhaarInput(el) {
+    const input = el || document.getElementById('empAadhaar');
+    const msgEl = document.getElementById('empAadhaarMsg');
+    if (!input) return false;
+    const res = validateAadhaarNumber(input.value);
+    if (msgEl) {
+        if (input.value.trim().length === 0) {
+            msgEl.innerHTML = '';
+            input.style.borderColor = 'var(--border)';
+        } else if (res.valid) {
+            msgEl.innerHTML = `<span style="color:#22a65e;"><i class="fas fa-check-circle"></i> ${res.message}</span>`;
+            input.style.borderColor = '#22a65e';
+        } else {
+            msgEl.innerHTML = `<span style="color:#dc3545;"><i class="fas fa-times-circle"></i> ${res.message}</span>`;
+            input.style.borderColor = '#dc3545';
+        }
+    }
+    return res.valid;
+}
+
+function validatePanInput(el) {
+    const input = el || document.getElementById('empPan');
+    const msgEl = document.getElementById('empPanMsg');
+    if (!input) return false;
+    input.value = input.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
+    const res = validatePanNumber(input.value);
+    if (msgEl) {
+        if (input.value.trim().length === 0) {
+            msgEl.innerHTML = '';
+            input.style.borderColor = 'var(--border)';
+        } else if (res.valid) {
+            msgEl.innerHTML = `<span style="color:#22a65e;"><i class="fas fa-check-circle"></i> ${res.message}</span>`;
+            input.style.borderColor = '#22a65e';
+        } else {
+            msgEl.innerHTML = `<span style="color:#dc3545;"><i class="fas fa-times-circle"></i> ${res.message}</span>`;
+            input.style.borderColor = '#dc3545';
+        }
+    }
+    return res.valid;
+}
+
+function validatePhoneInput(el) {
+    const input = el || document.getElementById('empPhone');
+    const msgEl = document.getElementById('empPhoneMsg');
+    if (!input) return false;
+    input.value = input.value.replace(/\D/g, '').slice(0, 10);
+    const res = validatePhoneNumber(input.value);
+    if (msgEl) {
+        if (input.value.trim().length === 0) {
+            msgEl.innerHTML = '';
+            input.style.borderColor = 'var(--border)';
+        } else if (res.valid) {
+            msgEl.innerHTML = `<span style="color:#22a65e;"><i class="fas fa-check-circle"></i> ${res.message}</span>`;
+            input.style.borderColor = '#22a65e';
+        } else {
+            msgEl.innerHTML = `<span style="color:#dc3545;"><i class="fas fa-times-circle"></i> ${res.message}</span>`;
+            input.style.borderColor = '#dc3545';
+        }
+    }
+    return res.valid;
+}
+
+function validateNameInput(el) {
+    const input = el || document.getElementById('empName');
+    const msgEl = document.getElementById('empNameMsg');
+    if (!input) return false;
+    const val = input.value.trim();
+    const valid = val.length >= 2;
+    if (msgEl) {
+        if (val.length === 0) {
+            msgEl.innerHTML = '';
+            input.style.borderColor = 'var(--border)';
+        } else if (valid) {
+            msgEl.innerHTML = `<span style="color:#22a65e;"><i class="fas fa-check-circle"></i> Valid Name</span>`;
+            input.style.borderColor = '#22a65e';
+        } else {
+            msgEl.innerHTML = `<span style="color:#dc3545;"><i class="fas fa-times-circle"></i> Minimum 2 characters required</span>`;
+            input.style.borderColor = '#dc3545';
+        }
+    }
+    return valid;
+}
+
+function validateEmailInput(el) {
+    const input = el || document.getElementById('empEmail');
+    const msgEl = document.getElementById('empEmailMsg');
+    if (!input) return false;
+    const val = input.value.trim();
+    const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
+    if (msgEl) {
+        if (val.length === 0) {
+            msgEl.innerHTML = '';
+            input.style.borderColor = 'var(--border)';
+        } else if (valid) {
+            msgEl.innerHTML = `<span style="color:#22a65e;"><i class="fas fa-check-circle"></i> Valid Email Address</span>`;
+            input.style.borderColor = '#22a65e';
+        } else {
+            msgEl.innerHTML = `<span style="color:#dc3545;"><i class="fas fa-times-circle"></i> Enter a valid email format</span>`;
+            input.style.borderColor = '#dc3545';
+        }
+    }
+    return valid;
+}
+
+function clearValidationStates() {
+    ['empName', 'empEmail', 'empPhone', 'empPan', 'empAadhaar'].forEach(id => {
+        const input = document.getElementById(id);
+        const msg = document.getElementById(id + 'Msg');
+        if (input) input.style.borderColor = 'var(--border)';
+        if (msg) msg.innerHTML = '';
+    });
+}
+
 function handleProfilePhotoUpload(e) { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = ev => { const p = document.getElementById('profileImagePreview'); if (p) p.src = ev.target.result; }; r.readAsDataURL(f); }
 function selectSampleAvatar(url) { const p = document.getElementById('profileImagePreview'); if (p) p.src = url; }
 function saveProfileData(e) { e.preventDefault(); if (window.showToast) window.showToast('Success', 'Profile saved!', 'success'); }
 function updateUserPhoto() {}
-function formatAadhaarInput() {}
 function markAllNotificationsRead() {
     const n = window._currentNotifications || [];
     n.forEach(x => x.read = true);
@@ -2151,6 +2506,11 @@ window.setModalPhoto = setModalPhoto;
 window.handleModalPhotoUpload = handleModalPhotoUpload;
 window.calculatePayrollPreview = calculatePayrollPreview;
 
+window.validateVerhoeff = validateVerhoeff;
+window.validateAadhaarNumber = validateAadhaarNumber;
+window.validatePanNumber = validatePanNumber;
+window.validatePhoneNumber = validatePhoneNumber;
+
 window.validateNameInput = validateNameInput;
 window.validateEmailInput = validateEmailInput;
 window.validatePhoneInput = validatePhoneInput;
@@ -2166,5 +2526,6 @@ window.formatAadhaarInput = formatAadhaarInput;
 window.markAllNotificationsRead = markAllNotificationsRead;
 window.refreshCurrentSection = refreshCurrentSection;
 
-console.log('✅ renderers.js loaded with FULL features');
+console.log('✅ renderers.js loaded with FULL features & Statutory Validations');
 console.log('   Exposed renderers:', Object.keys(window).filter(k => k.startsWith('render')).length);
+
