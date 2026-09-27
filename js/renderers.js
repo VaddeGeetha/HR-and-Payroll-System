@@ -86,10 +86,9 @@ function renderHRDashboard(userEmail, employees, leaves, stats, chartData) {
                 <h2>HR Management Dashboard</h2>
                 <div class="subhead">Workforce operations, leave reviews, and monthly payroll control</div>
             </div>
-            <div style="display:flex;gap:0.5rem;">
-                <button class="btn-primary btn-sm" onclick="window.showAddEmployeeModal()"><i class="fas fa-user-plus"></i> Add Employee</button>
-                <button class="btn-success btn-sm" onclick="window.openRunPayrollModal()"><i class="fas fa-calculator"></i> Run Payroll</button>
-            </div>
+            <span class="badge" style="background:#e8f0fe;color:var(--primary);padding:0.4rem 1rem;font-weight:600;">
+                <i class="fas fa-user-shield"></i> HR Management
+            </span>
         </div>
         <div class="stats-grid">
             <div class="stat-card"><div class="stat-label"><i class="fas fa-users" style="color:var(--primary);"></i> Total Employees</div><div class="stat-value">${totalEmps}</div><span class="stat-change">Verified</span></div>
