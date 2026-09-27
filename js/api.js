@@ -197,17 +197,26 @@ class ApiService {
     async approveLeave(id, comment = 'Approved by HR Management') {
         const payload = typeof comment === 'object' ? comment : { comment: comment || 'Approved by HR Management' };
         return this.request(`/leaves/${id}/approve`, {
-            method: 'PUT',
+                    method: 'PUT',
             body: JSON.stringify(payload)
-        });
+                });
     }
 
     async rejectLeave(id, comment = 'Rejected by HR Management') {
         const payload = typeof comment === 'object' ? comment : { comment: comment || 'Rejected by HR Management' };
         return this.request(`/leaves/${id}/reject`, {
-            method: 'PUT',
+                    method: 'PUT',
             body: JSON.stringify(payload)
-        });
+                });
+            } catch (err) {
+                lastError = err;
+                if (!err.message || !err.message.toLowerCase().includes('pending')) {
+                    throw err;
+                }
+                console.warn(`Reject attempt with body ${JSON.stringify(body)} failed: ${err.message}`);
+            }
+        }
+        throw lastError || new Error('Reject failed');
     }
 
     // ===== PAYROLL ENDPOINTS =====
