@@ -26,6 +26,68 @@ var DEFAULT_AVATARS = window.DEFAULT_AVATARS || {
     hr: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150'
 };
 
+function getLiveEmployeeLeaveBalances(userEmail, employees, leaves) {
+    const email = (userEmail || window.currentUser?.email || window.userEmail || '').trim().toLowerCase();
+    const empList = employees || window._currentEmployees || [];
+    const emp = empList.find(e => (e.email || '').toLowerCase() === email) || window.currentUser?.empData;
+    
+    // Base standard allocations (or from employee profile)
+    const baseAllocated = {
+        casual: (emp?.leave_balances?.casual?.allocated != null) ? Number(emp.leave_balances.casual.allocated) : 4,
+        sick: (emp?.leave_balances?.sick?.allocated != null) ? Number(emp.leave_balances.sick.allocated) : 3,
+        earned: (emp?.leave_balances?.earned?.allocated != null) ? Number(emp.leave_balances.earned.allocated) : 15
+    };
+
+    const allLeaves = leaves || window._currentLeaves || [];
+    const empLeaves = allLeaves.filter(l => {
+        if (!emp && !email) return false;
+        const lEmail = (l.email || l.employee_email || '').toLowerCase();
+        const lEmpId = String(l.employee_id || l.user_id || '');
+        return (email && lEmail === email) || (emp && lEmpId === String(emp.id));
+    });
+
+    // Only APPROVED leaves deduct from balance
+    const approvedLeaves = empLeaves.filter(l => (l.status || '').toLowerCase() === 'approved');
+
+    let casualUsed = 0;
+    let sickUsed = 0;
+    let earnedUsed = 0;
+
+    approvedLeaves.forEach(l => {
+        const type = (l.type || l.leave_type || '').toLowerCase();
+        const days = Number(l.days) || 0;
+        if (type.includes('casual')) {
+            casualUsed += days;
+        } else if (type.includes('sick')) {
+            sickUsed += days;
+        } else if (type.includes('earned') || type.includes('annual')) {
+            earnedUsed += days;
+        }
+    });
+
+    return {
+        casual: {
+            allocated: baseAllocated.casual,
+            used: casualUsed,
+            remaining: Math.max(0, baseAllocated.casual - casualUsed),
+            extra: Math.max(0, casualUsed - baseAllocated.casual)
+        },
+        sick: {
+            allocated: baseAllocated.sick,
+            used: sickUsed,
+            remaining: Math.max(0, baseAllocated.sick - sickUsed),
+            extra: Math.max(0, sickUsed - baseAllocated.sick)
+        },
+        earned: {
+            allocated: baseAllocated.earned,
+            used: earnedUsed,
+            remaining: Math.max(0, baseAllocated.earned - earnedUsed),
+            extra: Math.max(0, earnedUsed - baseAllocated.earned)
+        }
+    };
+}
+window.getLiveEmployeeLeaveBalances = getLiveEmployeeLeaveBalances;
+
 // ============================================================
 // ===== 1. DASHBOARD RENDERERS =====
 // ============================================================
@@ -154,11 +216,13 @@ function renderEmployeeDashboard(userEmail, employees, leaves, stats) {
     const currentEmp = employees.find(e => e.email && e.email.toLowerCase() === userEmail.toLowerCase()) 
         || window.currentUser?.empData 
         || { name: getNameFromEmail(userEmail), email: userEmail, id: 1, department: 'IT', designation: 'Employee', monthly_salary: 75000, annual_ctc: '9.00 LPA', photo: DEFAULT_AVATARS.alex };
-    const leaveBalances = currentEmp?.leave_balances || {
-        casual: { available: 4, used: 1, remaining: 3 },
-        sick: { available: 3, used: 0, remaining: 3 },
-        earned: { allocated: 15, used: 5, remaining: 10, carry_forward: 10 }
-    };
+    const leaveBalances = (typeof getLiveEmployeeLeaveBalances === 'function')
+        ? getLiveEmployeeLeaveBalances(userEmail, employees, leaves)
+        : (currentEmp?.leave_balances || {
+            casual: { allocated: 4, used: 1, remaining: 3 },
+            sick: { allocated: 3, used: 0, remaining: 3 },
+            earned: { allocated: 15, used: 5, remaining: 10 }
+        });
     const totalRemainingLeaves = (leaveBalances.casual?.remaining || 0) + (leaveBalances.sick?.remaining || 0) + (leaveBalances.earned?.remaining || 0);
     const empLeaves = leaves.filter(l => l.employee_id === currentEmp?.id || l.employee === currentEmp?.name || l.email === userEmail);
     const pendingReqs = empLeaves.filter(l => l.status === 'pending');
@@ -511,28 +575,47 @@ function renderHRLeaveDesk(userEmail, employees, leaves) {
 }
 
 function renderApplyLeaveSection(userEmail, role, employees) {
-    const currentEmp = employees.find(e => e.email && e.email.toLowerCase() === userEmail.toLowerCase()) || employees[0];
-    const balances = currentEmp?.leave_balances || {};
+    const todayStr = new Date().toISOString().split('T')[0];
+    const balances = (typeof window.getLiveEmployeeLeaveBalances === 'function')
+        ? window.getLiveEmployeeLeaveBalances(userEmail, employees, window._currentLeaves)
+        : { casual: { remaining: 4, allocated: 4, used: 0 }, sick: { remaining: 3, allocated: 3, used: 0 }, earned: { remaining: 15, allocated: 15, used: 0 } };
+
     return `
-        <div style="margin-bottom:1.5rem;"><h2>Apply for Leave</h2><div class="subhead">Submit leave applications with auto-duration calculation</div></div>
-        <div class="detail-list" style="max-width:720px;margin:0 auto;">
+        <div style="margin-bottom:1.5rem;">
+            <h2>Apply for Leave</h2>
+            <div class="subhead">Submit leave applications with automatic working day calculation (Saturdays & Sundays excluded as natural holidays)</div>
+        </div>
+        <div class="detail-list" style="max-width:740px;margin:0 auto;">
             <form id="applyLeaveForm" onsubmit="window.submitApplyLeave(event)">
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;">
                     <div class="input-group" style="margin:0;grid-column:1/-1;">
                         <label>Leave Type *</label>
-                        <select id="leaveTypeSelect" required style="width:100%;padding:0.7rem;border:2px solid var(--border);border-radius:var(--radius-sm);">
-                            <option value="Casual Leave">Casual Leave (${balances.casual?.remaining || 3}d)</option>
-                            <option value="Sick Leave">Sick Leave (${balances.sick?.remaining || 3}d)</option>
-                            <option value="Earned Leave">Earned Leave (${balances.earned?.remaining || 10}d)</option>
+                        <select id="leaveTypeSelect" required onchange="window.calcLeaveDaysAuto()" style="width:100%;padding:0.75rem;border:2px solid var(--border);border-radius:var(--radius-sm);font-weight:600;">
+                            <option value="Casual Leave">Casual Leave (${balances.casual.remaining} of ${balances.casual.allocated} day${balances.casual.remaining !== 1 ? 's' : ''} remaining)</option>
+                            <option value="Sick Leave">Sick Leave (${balances.sick.remaining} of ${balances.sick.allocated} day${balances.sick.remaining !== 1 ? 's' : ''} remaining)</option>
+                            <option value="Earned Leave">Earned Leave (${balances.earned.remaining} of ${balances.earned.allocated} day${balances.earned.remaining !== 1 ? 's' : ''} remaining)</option>
                         </select>
                     </div>
-                    <div class="input-group" style="margin:0;"><label>From *</label><input type="date" id="leaveFromDate" required onchange="window.calcLeaveDaysAuto()"></div>
-                    <div class="input-group" style="margin:0;"><label>To *</label><input type="date" id="leaveToDate" required onchange="window.calcLeaveDaysAuto()"></div>
-                    <div class="input-group" style="margin:0;grid-column:1/-1;"><label>Days (Working Days Only)</label><input type="number" id="leaveCalculatedDays" readonly value="0" style="background:var(--border);font-weight:700;"></div>
-                    <div class="input-group" style="margin:0;grid-column:1/-1;"><label>Reason *</label><textarea id="leaveReasonText" required rows="3" style="width:100%;padding:0.7rem;border:2px solid var(--border);border-radius:var(--radius-sm);"></textarea></div>
+                    <div class="input-group" style="margin:0;">
+                        <label>From Date (Present / Future only) *</label>
+                        <input type="date" id="leaveFromDate" min="${todayStr}" required onchange="window.handleLeaveFromDateChange(this.value); window.calcLeaveDaysAuto();" style="padding:0.7rem;border:2px solid var(--border);border-radius:var(--radius-sm);width:100%;">
+                    </div>
+                    <div class="input-group" style="margin:0;">
+                        <label>To Date *</label>
+                        <input type="date" id="leaveToDate" min="${todayStr}" required onchange="window.calcLeaveDaysAuto()" style="padding:0.7rem;border:2px solid var(--border);border-radius:var(--radius-sm);width:100%;">
+                    </div>
+                    <div class="input-group" style="margin:0;grid-column:1/-1;">
+                        <label>Working Days Count (Sat & Sun Excluded as Natural Holidays)</label>
+                        <input type="number" id="leaveCalculatedDays" readonly value="0" style="background:var(--border);font-weight:800;font-size:1.1rem;color:var(--primary);width:100%;padding:0.7rem;">
+                    </div>
+                    <div id="leaveCalculationNotice" style="grid-column:1/-1;margin-top:-0.3rem;"></div>
+                    <div class="input-group" style="margin:0;grid-column:1/-1;">
+                        <label>Reason *</label>
+                        <textarea id="leaveReasonText" required rows="3" placeholder="Please provide reason for leave request..." style="width:100%;padding:0.75rem;border:2px solid var(--border);border-radius:var(--radius-sm);"></textarea>
+                    </div>
                 </div>
-                <div style="margin-top:1.5rem;display:flex;gap:0.8rem;">
-                    <button type="submit" class="btn-primary" style="padding:0.75rem 2rem;"><i class="fas fa-paper-plane"></i> Submit</button>
+                <div style="margin-top:1.5rem;display:flex;gap:0.8rem;align-items:center;">
+                    <button type="submit" class="btn-primary" style="padding:0.75rem 2.2rem;font-weight:700;"><i class="fas fa-paper-plane"></i> Submit Application</button>
                     <button type="button" class="btn-secondary-custom" onclick="window.switchSection('my_leaves')">View My Leaves</button>
                 </div>
             </form>
@@ -586,37 +669,52 @@ function renderMyLeavesSection(userEmail, role, employees, leaves) {
 
 function renderLeaveBalanceSection(userEmail, role, employees) {
     const currentEmp = employees.find(e => e.email && e.email.toLowerCase() === userEmail.toLowerCase()) || employees[0];
-    const b = currentEmp?.leave_balances || {
-        casual: { available: 4, used: 1, remaining: 3, allocated: 4 },
-        sick: { available: 3, used: 0, remaining: 3, allocated: 3 },
-        earned: { allocated: 15, used: 5, remaining: 10, carry_forward: 10 }
-    };
+    const b = (typeof window.getLiveEmployeeLeaveBalances === 'function')
+        ? window.getLiveEmployeeLeaveBalances(userEmail, employees, window._currentLeaves)
+        : (currentEmp?.leave_balances || {
+            casual: { allocated: 4, used: 1, remaining: 3 },
+            sick: { allocated: 3, used: 0, remaining: 3 },
+            earned: { allocated: 15, used: 5, remaining: 10 }
+        });
+
     return `
         <h2>Leave Balances & Rollover Rules</h2>
-        <div class="subhead">Itemized monthly calculations and carry forward formulas</div>
+        <div class="subhead">Live quota tracking, approved deductions, and automatic weekend natural holiday exclusions</div>
         <div class="detail-list" style="margin-top:1.5rem;">
             <div class="custom-table-responsive">
                 <table class="styled-table">
-                    <thead><tr><th>Leave Type</th><th>Total Allocated</th><th>Used</th><th>Remaining</th><th>Rollover</th></tr></thead>
+                    <thead><tr><th>Leave Type</th><th>Total Allocated</th><th>Approved Used</th><th>Remaining Balance</th><th>Policy & Rollover</th></tr></thead>
                     <tbody>
-                        <tr><td><strong>Casual Leave (CL)</strong></td><td>${b.casual?.allocated || 4} Days</td><td style="color:var(--danger);">${b.casual?.used || 1} Day</td><td><strong style="color:var(--success);">${b.casual?.remaining || 3} Days</strong></td><td><span style="color:var(--success);"><i class="fas fa-check"></i> Monthly Carry-Forward</span></td></tr>
-                        <tr><td><strong>Sick Leave (SL)</strong></td><td>${b.sick?.allocated || 3} Days</td><td style="color:var(--danger);">${b.sick?.used || 0} Days</td><td><strong style="color:var(--success);">${b.sick?.remaining || 3} Days</strong></td><td><span style="color:var(--text-light);">Cumulative</span></td></tr>
-                        <tr><td><strong>Earned Leave (EL)</strong></td><td>${b.earned?.allocated || 15} Days</td><td style="color:var(--danger);">${b.earned?.used || 5} Days</td><td><strong style="color:var(--success);">${b.earned?.remaining || 10} Days</strong></td><td><span style="color:var(--primary);font-weight:700;">Yearly Rollover</span></td></tr>
+                        <tr>
+                            <td><strong>Casual Leave (CL)</strong></td>
+                            <td>${b.casual?.allocated || 4} Days</td>
+                            <td style="color:var(--danger);font-weight:700;">${b.casual?.used || 0} Day(s)</td>
+                            <td><strong style="color:var(--success);font-size:1.05rem;">${b.casual?.remaining || 0} Days</strong></td>
+                            <td><span style="color:var(--success);"><i class="fas fa-check"></i> Monthly Carry-Forward</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Sick Leave (SL)</strong></td>
+                            <td>${b.sick?.allocated || 3} Days</td>
+                            <td style="color:var(--danger);font-weight:700;">${b.sick?.used || 0} Day(s)</td>
+                            <td><strong style="color:var(--success);font-size:1.05rem;">${b.sick?.remaining || 0} Days</strong></td>
+                            <td><span style="color:var(--text-light);">Cumulative Medical</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Earned Leave (EL)</strong></td>
+                            <td>${b.earned?.allocated || 15} Days</td>
+                            <td style="color:var(--danger);font-weight:700;">${b.earned?.used || 0} Day(s)</td>
+                            <td><strong style="color:var(--success);font-size:1.05rem;">${b.earned?.remaining || 0} Days</strong></td>
+                            <td><span style="color:var(--primary);font-weight:700;"><i class="fas fa-sync-alt"></i> Yearly Rollover</span></td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
         </div>
         <div class="stat-card" style="padding:1.4rem;margin-top:1.5rem;">
-            <h4 style="margin:0 0 0.8rem 0;"><i class="fas fa-calculator" style="color:var(--primary);"></i> Carry Forward Formula</h4>
-            <div class="carry-forward-formula-box">
-                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;font-size:0.95rem;">
-                    <span>Previous Remaining: <strong>${b.monthly?.carry_forward_calc?.previous_month_remaining || 2}</strong></span>
-                    <span>+</span>
-                    <span>Current: <strong>${b.monthly?.carry_forward_calc?.current_month_allocation || 2}</strong></span>
-                    <span>=</span>
-                    <span style="color:var(--success);font-weight:800;">Total: ${b.monthly?.carry_forward_calc?.total_available || 4} Days</span>
-                </div>
-            </div>
+            <h4 style="margin:0 0 0.8rem 0;"><i class="fas fa-umbrella-beach" style="color:var(--primary);"></i> Natural Holidays & Weekend Rule</h4>
+            <p style="margin:0;font-size:0.9rem;color:var(--text-secondary);line-height:1.6;">
+                <strong>Saturdays and Sundays</strong> falling within your leave period are automatically treated as <strong>natural holidays</strong> and are <strong>not deducted</strong> from your leave balance. Only active business working days (Monday–Friday) consume leave credits.
+            </p>
         </div>
     `;
 }
@@ -1337,34 +1435,162 @@ function exportChatTranscript() {
 }
 
 // ===== LEAVE ACTIONS =====
+function handleLeaveFromDateChange(val) {
+    const toInput = document.getElementById('leaveToDate');
+    if (!toInput) return;
+    if (val) {
+        toInput.min = val;
+        if (toInput.value && toInput.value < val) {
+            toInput.value = val;
+        }
+    }
+}
+
 function calcLeaveDaysAuto() {
-    const from = document.getElementById('leaveFromDate')?.value;
-    const to = document.getElementById('leaveToDate')?.value;
+    const fromInput = document.getElementById('leaveFromDate');
+    const toInput = document.getElementById('leaveToDate');
     const daysInput = document.getElementById('leaveCalculatedDays');
-    if (!daysInput || !from || !to) return;
-    const d1 = new Date(from), d2 = new Date(to);
-    if (isNaN(d1) || isNaN(d2) || d2 < d1) { daysInput.value = 0; return; }
+    const noticeEl = document.getElementById('leaveCalculationNotice');
+    const typeSelect = document.getElementById('leaveTypeSelect');
+    if (!daysInput) return;
+
+    const from = fromInput?.value;
+    const to = toInput?.value;
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    if (!from || !to) {
+        daysInput.value = 0;
+        if (noticeEl) noticeEl.innerHTML = '';
+        return;
+    }
+
+    if (from < todayStr) {
+        daysInput.value = 0;
+        if (noticeEl) {
+            noticeEl.innerHTML = `<div style="background:#fde8e8;color:#dc3545;padding:0.6rem 0.9rem;border-radius:6px;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;"><i class="fas fa-exclamation-triangle"></i> Leave cannot be applied for past dates. Please choose today or a future date.</div>`;
+        }
+        return;
+    }
+
+    const d1 = new Date(from + 'T00:00:00');
+    const d2 = new Date(to + 'T00:00:00');
+
+    if (isNaN(d1.getTime()) || isNaN(d2.getTime()) || d2 < d1) {
+        daysInput.value = 0;
+        if (noticeEl) {
+            noticeEl.innerHTML = `<div style="background:#fde8e8;color:#dc3545;padding:0.6rem 0.9rem;border-radius:6px;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;"><i class="fas fa-exclamation-triangle"></i> 'To Date' must be on or after 'From Date'.</div>`;
+        }
+        return;
+    }
+
     let workingDays = 0;
+    let weekendHolidays = 0;
     for (let d = new Date(d1); d <= d2; d.setDate(d.getDate() + 1)) {
         const day = d.getDay();
-        if (day !== 0 && day !== 6) workingDays++;
+        if (day === 0 || day === 6) {
+            weekendHolidays++;
+        } else {
+            workingDays++;
+        }
     }
+
     daysInput.value = workingDays;
+
+    // Get live employee remaining balance for selected leave type
+    const userEmail = (window.currentUser?.email || window.userEmail || '').trim().toLowerCase();
+    const balances = (typeof getLiveEmployeeLeaveBalances === 'function')
+        ? getLiveEmployeeLeaveBalances(userEmail, window._currentEmployees, window._currentLeaves)
+        : { casual: { remaining: 4 }, sick: { remaining: 3 }, earned: { remaining: 15 } };
+    const selectedType = typeSelect ? typeSelect.value : 'Casual Leave';
+
+    let remainingQuota = 0;
+    if (selectedType.toLowerCase().includes('casual')) remainingQuota = balances.casual.remaining;
+    else if (selectedType.toLowerCase().includes('sick')) remainingQuota = balances.sick.remaining;
+    else if (selectedType.toLowerCase().includes('earned')) remainingQuota = balances.earned.remaining;
+
+    if (!noticeEl) return;
+
+    if (workingDays === 0) {
+        noticeEl.innerHTML = `
+            <div style="background:#fff3cd;color:#856404;padding:0.7rem 0.9rem;border-radius:6px;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">
+                <i class="fas fa-umbrella-beach" style="color:#f59e0b;"></i>
+                Selected duration falls entirely on weekend natural holidays (${weekendHolidays} Saturday/Sunday). 0 working days deducted.
+            </div>
+        `;
+    } else if (workingDays > remainingQuota) {
+        const extraDays = workingDays - remainingQuota;
+        noticeEl.innerHTML = `
+            <div style="background:#fde8e8;color:#b91c1c;padding:0.75rem 1rem;border-radius:6px;font-size:0.88rem;border:1.5px solid #f87171;line-height:1.5;">
+                <div style="font-weight:700;display:flex;align-items:center;gap:6px;margin-bottom:3px;">
+                    <i class="fas fa-exclamation-circle" style="color:#dc3545;font-size:1.05rem;"></i>
+                    ⚠️ Extra Leaves Reminder: Exceeds Available Quota!
+                </div>
+                <div>
+                    You are applying for <strong>${workingDays} working day(s)</strong> (${weekendHolidays > 0 ? weekendHolidays + ' weekend holiday(s) excluded' : 'no weekends'}).
+                    Your remaining <strong>${selectedType}</strong> quota is <strong>${remainingQuota} day(s)</strong>.
+                    <br/>
+                    <strong style="color:#991b1b;">${extraDays} extra day(s)</strong> will be recorded as <strong>Unpaid Leave / Loss of Pay (LOP)</strong>.
+                </div>
+            </div>
+        `;
+    } else {
+        noticeEl.innerHTML = `
+            <div style="background:#d1fae5;color:#065f46;padding:0.7rem 0.9rem;border-radius:6px;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:6px;">
+                <i class="fas fa-check-circle" style="color:#059669;"></i>
+                ${workingDays} working day(s) will be deducted from your ${selectedType} (${remainingQuota - workingDays} day(s) remaining after approval). ${weekendHolidays > 0 ? `(${weekendHolidays} weekend natural holiday(s) excluded)` : ''}
+            </div>
+        `;
+    }
 }
 
 async function submitApplyLeave(event) {
     event.preventDefault();
     const submitBtn = document.querySelector('#applyLeaveForm button[type="submit"]');
-    const originalBtnHTML = submitBtn ? submitBtn.innerHTML : '<i class="fas fa-paper-plane"></i> Submit';
+    const originalBtnHTML = submitBtn ? submitBtn.innerHTML : '<i class="fas fa-paper-plane"></i> Submit Application';
 
-    const type = document.getElementById('leaveTypeSelect').value;
-    const from = document.getElementById('leaveFromDate').value;
-    const to = document.getElementById('leaveToDate').value;
-    const days = parseInt(document.getElementById('leaveCalculatedDays').value) || 0;
-    const reason = document.getElementById('leaveReasonText').value.trim();
-    if (!type || !from || !to || !reason || days < 1) {
-        if (window.showToast) window.showToast('Error', 'Fill all fields with at least 1 working day.', 'error');
+    const type = document.getElementById('leaveTypeSelect')?.value;
+    const from = document.getElementById('leaveFromDate')?.value;
+    const to = document.getElementById('leaveToDate')?.value;
+    const days = parseInt(document.getElementById('leaveCalculatedDays')?.value) || 0;
+    const reason = document.getElementById('leaveReasonText')?.value?.trim();
+
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    if (!type || !from || !to || !reason) {
+        if (window.showToast) window.showToast('Error', 'Please fill in all required fields.', 'error');
         return;
+    }
+
+    if (from < todayStr) {
+        if (window.showToast) window.showToast('Invalid Date', 'Leave cannot be applied for past dates. Select present or future date.', 'error');
+        return;
+    }
+
+    if (to < from) {
+        if (window.showToast) window.showToast('Invalid Date Range', 'End date must be on or after start date.', 'error');
+        return;
+    }
+
+    if (days < 1) {
+        if (window.showToast) window.showToast('Zero Working Days', 'Selected dates fall entirely on weekend natural holidays (Sat/Sun). At least 1 business working day is required.', 'error');
+        return;
+    }
+
+    let userEmail = (window.currentUser?.email || window.userEmail || '').trim().toLowerCase();
+    const emp = (window._currentEmployees || []).find(e => (e.email || '').toLowerCase() === userEmail) || window.currentUser?.empData;
+    const balances = (typeof getLiveEmployeeLeaveBalances === 'function')
+        ? getLiveEmployeeLeaveBalances(userEmail, window._currentEmployees, window._currentLeaves)
+        : { casual: { remaining: 4 }, sick: { remaining: 3 }, earned: { remaining: 15 } };
+
+    let remainingQuota = 0;
+    if (type.toLowerCase().includes('casual')) remainingQuota = balances.casual.remaining;
+    else if (type.toLowerCase().includes('sick')) remainingQuota = balances.sick.remaining;
+    else if (type.toLowerCase().includes('earned')) remainingQuota = balances.earned.remaining;
+
+    let noticeMsg = `Leave application for ${days} working day(s) submitted.`;
+    if (days > remainingQuota) {
+        const extra = days - remainingQuota;
+        noticeMsg = `Leave applied with ${extra} extra day(s) as Loss of Pay (LOP).`;
     }
 
     if (submitBtn) {
@@ -1372,21 +1598,59 @@ async function submitApplyLeave(event) {
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
     }
 
-    let userEmail = (window.currentUser?.email || window.userEmail || '').toLowerCase();
-    const emp = (window._currentEmployees || []).find(e => e.email?.toLowerCase() === userEmail);
-    const payload = { type, from, to, days, reason, email: userEmail, employee_id: emp?.id };
+    const payload = {
+        type,
+        leave_type: type,
+        from,
+        start_date: from,
+        to,
+        end_date: to,
+        days,
+        reason,
+        email: userEmail,
+        employee_id: emp?.id
+    };
 
     try {
+        let createdLeave = null;
         if (!window.useMockData && window.api) {
-            await window.api.applyLeave(payload);
-        } else {
-            const leaves = window._currentLeaves || [];
-            leaves.unshift({ id: Date.now(), ...payload, status: 'pending' });
-            window._currentLeaves = leaves;
+            const res = await window.api.applyLeave(payload);
+            createdLeave = res?.data || res?.leave || res;
         }
 
-        if (window.showToast) window.showToast('Success', 'Leave applied successfully.', 'success');
-        if (typeof fetchLeaves === 'function') window._currentLeaves = await fetchLeaves();
+        // Add to local state immediately
+        const newRecord = {
+            id: createdLeave?.id || Date.now(),
+            employee_id: emp?.id || 1,
+            employee: emp?.name || window.currentUser?.name || 'Employee',
+            email: userEmail,
+            department: emp?.department || 'IT',
+            photo: emp?.photo || DEFAULT_AVATARS.alex,
+            type,
+            from,
+            to,
+            days,
+            reason,
+            status: 'pending',
+            comments: [],
+            applied_at: new Date().toISOString()
+        };
+
+        const leaves = window._currentLeaves || [];
+        leaves.unshift(newRecord);
+        window._currentLeaves = leaves;
+
+        if (window.showToast) window.showToast('Leave Applied', noticeMsg, 'success');
+        
+        // Refresh from backend in background
+        if (typeof fetchLeaves === 'function') {
+            fetchLeaves().then(updated => {
+                if (Array.isArray(updated) && updated.length > 0) {
+                    window._currentLeaves = updated;
+                }
+            }).catch(e => console.warn('Background leave refresh notice:', e.message));
+        }
+
         if (window.renderApp) await window.renderApp(userEmail);
         if (window.switchSection) window.switchSection('my_leaves');
     } catch(e) {
@@ -1856,6 +2120,8 @@ window.handleSendChatMessage = handleSendChatMessage;
 window.exportChatTranscript = exportChatTranscript;
 
 window.calcLeaveDaysAuto = calcLeaveDaysAuto;
+window.handleLeaveFromDateChange = handleLeaveFromDateChange;
+window.getLiveEmployeeLeaveBalances = getLiveEmployeeLeaveBalances;
 window.submitApplyLeave = submitApplyLeave;
 window.directApproveLeave = directApproveLeave;
 window.promptApproveLeave = promptApproveLeave;

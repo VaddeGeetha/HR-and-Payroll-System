@@ -291,7 +291,23 @@ const applyLeave = async (req, res) => {
       });
     }
 
-    // ✅ Calculate working days excluding weekends (Saturday: 6, Sunday: 0)
+    // Validation: Do not allow past dates
+    const todayStr = new Date().toISOString().split("T")[0];
+    if (from < todayStr) {
+      return res.status(400).json({
+        success: false,
+        message: "Leave cannot be applied for past dates."
+      });
+    }
+
+    if (to < from) {
+      return res.status(400).json({
+        success: false,
+        message: "End date must be on or after start date."
+      });
+    }
+
+    // ✅ Calculate working days excluding natural weekend holidays (Saturday: 6, Sunday: 0)
     let calculatedWorkingDays = 0;
     const d1 = new Date(from);
     const d2 = new Date(to);
@@ -306,7 +322,14 @@ const applyLeave = async (req, res) => {
       }
     }
 
-    const finalDays = calculatedWorkingDays > 0 ? calculatedWorkingDays : (Number(days) || 1);
+    if (calculatedWorkingDays < 1) {
+      return res.status(400).json({
+        success: false,
+        message: "Selected leave period contains 0 business working days (entirely on weekend natural holidays)."
+      });
+    }
+
+    const finalDays = calculatedWorkingDays;
 
     // Insert leave request into database
     const { data: leave, error } = await supabaseAdmin
