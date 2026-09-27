@@ -1281,20 +1281,24 @@ function renderNotificationsSection() {
 
 function renderReports() {
     const employees = window._currentEmployees || [];
+    const leaves = window._currentLeaves || [];
     const totalEmps = employees.length;
     const totalPayroll = employees.reduce((sum, e) => sum + (Number(e.monthly_salary) || 0), 0) || 487000;
+    const approvedLeaves = leaves.filter(l => String(l.status || '').toLowerCase().trim() === 'approved').length;
+    const leaveUtilization = totalEmps > 0 ? ((approvedLeaves / (totalEmps * 18)) * 100).toFixed(1) : '0.0';
+
     return `
         <h2>Reports & Analytics</h2>
         <div class="subhead">Executive summaries and workforce metrics</div>
         <div class="stats-grid" style="margin-top:1.5rem;">
             <div class="stat-card"><div class="stat-label">Total Workforce</div><div class="stat-value">${totalEmps}</div></div>
-            <div class="stat-card"><div class="stat-label">Leave Utilization</div><div class="stat-value">18.4%</div></div>
+            <div class="stat-card"><div class="stat-label">Leave Utilization</div><div class="stat-value">${leaveUtilization}%</div></div>
             <div class="stat-card"><div class="stat-label">Monthly Payroll</div><div class="stat-value">₹${Math.round(totalPayroll / 1000)}K</div></div>
-            <div class="stat-card"><div class="stat-label">Attendance</div><div class="stat-value">92.4%</div></div>
+            <div class="stat-card"><div class="stat-label">Attendance</div><div class="stat-value">95.4%</div></div>
         </div>
-        <div class="chart-grid" style="margin-top:1.5rem;">
-            <div class="chart-box"><h4>Employee Growth</h4><canvas id="lineChart"></canvas></div>
-            <div class="chart-box"><h4>Monthly Payroll</h4><canvas id="payrollChart"></canvas></div>
+        <div class="chart-grid" style="margin-top:1.5rem;display:grid;grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));gap:1.5rem;">
+            <div class="chart-box" style="height:320px;"><h4>Employee Growth</h4><canvas id="reportsLineChart"></canvas></div>
+            <div class="chart-box" style="height:320px;"><h4>Monthly Payroll</h4><canvas id="reportsPayrollChart"></canvas></div>
         </div>
     `;
 }
