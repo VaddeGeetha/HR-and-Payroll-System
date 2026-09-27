@@ -4,7 +4,10 @@ const router = express.Router();
 
 const {
   getDashboardStats,
-  getDashboardCharts
+  getDashboardCharts,
+  startWFH,
+  stopWFH,
+  getWFHStatus
 } = require("../controllers/dashboardController");
 
 const authorize = require("../middleware/authorize");
@@ -22,5 +25,10 @@ router.get(
   authorize("hr"),
   getDashboardCharts
 );
+
+// WFH Tracking Endpoints
+router.post("/wfh/start", authorize("admin", "hr", "employee"), startWFH);
+router.post("/wfh/stop", authorize("admin", "hr", "employee"), stopWFH);
+router.get("/wfh/status", authorize("admin", "hr", "employee"), getWFHStatus);
 
 module.exports = router;

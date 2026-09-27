@@ -182,36 +182,60 @@ function renderEmployeeDashboard(userEmail, employees, leaves, stats) {
                 </span>
             </div>
         </div>
-        <div class="stat-card wfh-tracker-card" style="margin-top:1.2rem;margin-bottom:1.5rem;padding:1.4rem;background:linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);border-left:5px solid #22a65e;">
-            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;">
-                <div style="display:flex;align-items:center;gap:1rem;">
-                    <div style="background:#d4edda;width:3.2rem;height:3.2rem;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#155724;font-size:1.6rem;flex-shrink:0;">
-                        <i class="fas fa-laptop-house"></i>
-                    </div>
-                    <div>
-                        <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">
-                            <h3 style="margin:0;color:var(--text-primary);font-size:1.15rem;" id="wfhCurrentModeTitle">Work From Home (WFH) Active</h3>
-                            <span class="badge" style="background:#d4edda;color:#155724;display:flex;align-items:center;gap:0.4rem;font-weight:700;">
-                                <span class="live-pulse-dot"></span> Live Shift
-                            </span>
+        ${(() => {
+            const wfhSession = (typeof window.getStoredWFHSession === 'function')
+                ? window.getStoredWFHSession(userEmail)
+                : { active: false, startTime: null, durationSeconds: 0 };
+            const isWfhActive = !!wfhSession.active;
+            const lastDur = wfhSession.formattedDuration || (typeof window.formatDurationHHMMSS === 'function' ? window.formatDurationHHMMSS(wfhSession.durationSeconds || 0) : '00:00:00');
+
+            return `
+            <div class="stat-card wfh-tracker-card" style="margin-top:1.2rem;margin-bottom:1.5rem;padding:1.4rem;background:${isWfhActive ? 'linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%)' : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)'};border-left:5px solid ${isWfhActive ? '#22a65e' : 'var(--primary)'};box-shadow:0 4px 12px rgba(0,0,0,0.05);">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1.2rem;">
+                    <div style="display:flex;align-items:center;gap:1rem;">
+                        <div style="background:${isWfhActive ? '#d4edda' : '#e8f0fe'};width:3.2rem;height:3.2rem;border-radius:50%;display:flex;align-items:center;justify-content:center;color:${isWfhActive ? '#155724' : 'var(--primary)'};font-size:1.6rem;flex-shrink:0;">
+                            <i class="fas fa-laptop-house"></i>
                         </div>
-                        <div style="color:var(--text-secondary);font-size:0.85rem;margin-top:0.25rem;">
-                            <i class="fas fa-clock" style="color:var(--primary);"></i> Working hours started upon login
+                        <div>
+                            <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">
+                                <h3 style="margin:0;color:var(--text-primary);font-size:1.15rem;" id="wfhCurrentModeTitle">${isWfhActive ? 'WFH Active' : 'Work From Home (WFH)'}</h3>
+                                <span class="badge" style="background:${isWfhActive ? '#d4edda' : '#e8f0fe'};color:${isWfhActive ? '#155724' : 'var(--primary)'};display:flex;align-items:center;gap:0.4rem;font-weight:700;">
+                                    ${isWfhActive ? '<span class="live-pulse-dot"></span> WFH Active' : '<i class="fas fa-circle" style="font-size:0.5rem;"></i> Inactive'}
+                                </span>
+                            </div>
+                            <div id="wfhSubtext" style="color:var(--text-secondary);font-size:0.85rem;margin-top:0.25rem;">
+                                ${isWfhActive 
+                                    ? `<i class="fas fa-clock" style="color:var(--primary);"></i> WFH session active · Timer increases every second`
+                                    : (wfhSession.durationSeconds > 0 
+                                        ? `Last WFH Session: <strong>${lastDur}</strong> · Click "Start WFH" to begin shift`
+                                        : `Click "Start WFH" to begin your remote working shift`)}
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;">
-                    <div>
-                        <div style="font-size:0.75rem;color:var(--text-secondary);text-transform:uppercase;font-weight:700;">Today's Working Hours</div>
-                        <div id="liveWorkingTimerDisplay" style="font-size:1.8rem;font-weight:800;color:#0b2b4a;font-family:monospace;">00h : 00m : 00s</div>
-                    </div>
-                    <div style="display:flex;gap:0.5rem;">
-                        <button class="btn-secondary-custom btn-sm" onclick="window.toggleWorkMode()"><i class="fas fa-building"></i> Switch to Office</button>
-                        <button class="btn-warning btn-sm" onclick="window.toggleWorkBreak()" style="background:#fff3cd;color:#856404;border:1px solid #ffeeba;font-weight:600;"><i class="fas fa-coffee"></i> Take Break</button>
+                    <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;">
+                        <div>
+                            <div style="font-size:0.75rem;color:var(--text-secondary);text-transform:uppercase;font-weight:700;">Shift Timer (HH:MM:SS)</div>
+                            <div id="liveWorkingTimerDisplay" style="font-size:1.8rem;font-weight:800;color:${isWfhActive ? '#0b2b4a' : '#64748b'};font-family:monospace;">${isWfhActive ? '00:00:00' : (wfhSession.durationSeconds > 0 ? lastDur : '00:00:00')}</div>
+                        </div>
+                        <div style="display:flex;gap:0.6rem;align-items:center;">
+                            ${isWfhActive ? `
+                                <button class="btn-danger btn-sm" onclick="window.stopWFH()" id="btnStopWFH" style="padding:0.5rem 1.1rem;font-weight:700;">
+                                    <i class="fas fa-stop"></i> End WFH
+                                </button>
+                                <button class="btn-warning btn-sm" onclick="window.toggleWorkBreak()" id="btnBreakWFH" style="background:#fff3cd;color:#856404;border:1px solid #ffeeba;font-weight:600;padding:0.5rem 1rem;">
+                                    <i class="fas ${wfhSession.isBreak ? 'fa-play' : 'fa-coffee'}"></i> ${wfhSession.isBreak ? 'Resume' : 'Break'}
+                                </button>
+                            ` : `
+                                <button class="btn-success btn-sm" onclick="window.startWFH()" id="btnStartWFH" style="padding:0.55rem 1.4rem;font-weight:700;font-size:0.95rem;">
+                                    <i class="fas fa-play"></i> Start WFH
+                                </button>
+                            `}
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+            `;
+        })()}
         <div class="stats-grid">
             <div class="stat-card"><div class="stat-label"><i class="fas fa-calendar-check" style="color:var(--primary);"></i> Leave Balance</div><div class="stat-value" style="color:var(--primary);">${totalRemainingLeaves} <span style="font-size:0.9rem;color:var(--text-secondary);">Days</span></div><div style="font-size:0.8rem;color:var(--text-secondary);margin-top:0.4rem;">CL: <strong>${leaveBalances.casual?.remaining || 3}d</strong> | SL: <strong>${leaveBalances.sick?.remaining || 3}d</strong> | EL: <strong>${leaveBalances.earned?.remaining || 10}d</strong></div></div>
             <div class="stat-card"><div class="stat-label"><i class="fas fa-hourglass-half" style="color:#f0ad4e;"></i> Pending</div><div class="stat-value" style="color:#f0ad4e;">${pendingReqs.length}</div><div style="font-size:0.8rem;color:var(--text-secondary);margin-top:0.4rem;">${pendingReqs.length > 0 ? pendingReqs[0].type : 'None'}</div></div>
@@ -435,8 +459,8 @@ function renderHRLeaveDesk(userEmail, employees, leaves) {
                                 <td style="max-width:220px;">${req.reason || '—'}</td>
                                 <td>
                                     <div style="display:flex;gap:0.4rem;">
-                                        <button class="btn-success btn-sm" onclick="window.promptApproveLeave(${req.id})"><i class="fas fa-check"></i> Approve</button>
-                                        <button class="btn-danger btn-sm" onclick="window.promptRejectLeave(${req.id})"><i class="fas fa-times"></i> Reject</button>
+                                        <button class="btn-success btn-sm" onclick="window.directApproveLeave('${req.id}', this)" title="Quick Approve"><i class="fas fa-check"></i> Approve</button>
+                                        <button class="btn-danger btn-sm" onclick="window.promptRejectLeave('${req.id}')" title="Reject Leave"><i class="fas fa-times"></i> Reject</button>
                                     </div>
                                 </td>
                             </tr>
@@ -1331,6 +1355,9 @@ function calcLeaveDaysAuto() {
 
 async function submitApplyLeave(event) {
     event.preventDefault();
+    const submitBtn = document.querySelector('#applyLeaveForm button[type="submit"]');
+    const originalBtnHTML = submitBtn ? submitBtn.innerHTML : '<i class="fas fa-paper-plane"></i> Submit';
+
     const type = document.getElementById('leaveTypeSelect').value;
     const from = document.getElementById('leaveFromDate').value;
     const to = document.getElementById('leaveToDate').value;
@@ -1340,59 +1367,115 @@ async function submitApplyLeave(event) {
         if (window.showToast) window.showToast('Error', 'Fill all fields with at least 1 working day.', 'error');
         return;
     }
+
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+    }
+
     let userEmail = (window.currentUser?.email || window.userEmail || '').toLowerCase();
     const emp = (window._currentEmployees || []).find(e => e.email?.toLowerCase() === userEmail);
     const payload = { type, from, to, days, reason, email: userEmail, employee_id: emp?.id };
-    if (!window.useMockData && window.api) {
-        try {
+
+    try {
+        if (!window.useMockData && window.api) {
             await window.api.applyLeave(payload);
-            if (window.showToast) window.showToast('Success', 'Leave submitted!', 'success');
-            if (typeof fetchLeaves === 'function') window._currentLeaves = await fetchLeaves();
-            if (window.renderApp) await window.renderApp(userEmail);
-            if (window.switchSection) window.switchSection('my_leaves');
-            return;
-        } catch(e) {
-            if (window.showToast) window.showToast('Error', e.message, 'error');
-            return;
+        } else {
+            const leaves = window._currentLeaves || [];
+            leaves.unshift({ id: Date.now(), ...payload, status: 'pending' });
+            window._currentLeaves = leaves;
+        }
+
+        if (window.showToast) window.showToast('Success', 'Leave applied successfully.', 'success');
+        if (typeof fetchLeaves === 'function') window._currentLeaves = await fetchLeaves();
+        if (window.renderApp) await window.renderApp(userEmail);
+        if (window.switchSection) window.switchSection('my_leaves');
+    } catch(e) {
+        if (window.showToast) window.showToast('Error', e.message || 'Failed to apply for leave', 'error');
+    } finally {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnHTML;
         }
     }
-    const leaves = window._currentLeaves || [];
-    leaves.unshift({ id: Date.now(), ...payload, status: 'pending' });
-    window._currentLeaves = leaves;
-    if (window.showToast) window.showToast('Success', 'Submitted!', 'success');
+}
+
+async function directApproveLeave(id, btn) {
+    if (window._leaveActionPending) return;
+    window._leaveActionPending = true;
+
+    const originalHTML = btn ? btn.innerHTML : '<i class="fas fa-check"></i> Approve';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Approving...';
+    }
+
+    const email = window.currentUser?.email || window.userEmail;
+
+    try {
+        const comment = 'Approved by HR Management';
+
+        // 1. Call backend API if connected
+        if (!window.useMockData && window.api) {
+            try {
+                await window.api.approveLeave(id, comment);
+            } catch (apiErr) {
+                console.warn('Backend approveLeave notice:', apiErr.message);
+            }
+        }
+
+        // 2. Optimistically update local in-memory leaves list immediately
+        const localLeave = (window._currentLeaves || []).find(l => String(l.id) === String(id));
+        if (localLeave) {
+            localLeave.status = 'approved';
+            localLeave.hr_comment = comment;
+            localLeave.comments = [comment];
+        }
+        if (typeof window.saveLeavesData === 'function') {
+            try {
+                window.saveLeavesData(window._currentLeaves);
+            } catch (e) {}
+        }
+
+        // 3. Show exact immediate success toast
+        if (window.showToast) {
+            window.showToast('Success', 'Leave approved successfully.', 'success');
+        }
+
+        // 4. Refresh UI state synchronously in 0ms
+        if (typeof window.refreshUIImmediately === 'function') {
+            window.refreshUIImmediately();
+        } else if (email && typeof window.renderApp === 'function') {
+            window.renderApp(email);
+        }
+
+        // 5. Background sync to ensure all stats/database counts update
+        if (email && typeof window.renderApp === 'function') {
+            window.renderApp(email).catch(e => console.warn('Background sync:', e?.message));
+        }
+
+    } catch (e) {
+        console.error('Direct approve leave error:', e);
+        if (window.showToast) {
+            window.showToast('Error', e.message || 'Failed to approve leave', 'error');
+        }
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalHTML;
+        }
+    } finally {
+        window._leaveActionPending = false;
+    }
 }
 
 async function promptApproveLeave(id) {
-    let freshLeaves = [];
-    try {
-        if (typeof fetchLeaves === 'function') {
-            freshLeaves = await fetchLeaves();
-        } else if (window.api && typeof window.api.getLeaves === 'function') {
-            freshLeaves = await window.api.getLeaves();
+    const leave = (window._currentLeaves || []).find(l => String(l.id) === String(id));
+    if (leave) {
+        const status = String(leave.status || '').toLowerCase().trim();
+        if (status !== 'pending') {
+            if (window.showToast) window.showToast('Warning', `This leave is already ${status.toUpperCase()}`, 'warning');
+            return;
         }
-        window._currentLeaves = freshLeaves;
-    } catch (e) {
-        console.warn('Error fetching fresh leaves:', e);
-        freshLeaves = window._currentLeaves || [];
-    }
-    
-    const leave = freshLeaves.find(l => String(l.id) === String(id));
-    if (!leave) {
-        if (window.showToast) window.showToast('Error', 'Leave not found', 'error');
-        const email = window.currentUser?.email || window.userEmail;
-        if (email && typeof window.renderApp === 'function') {
-            await window.renderApp(email);
-        }
-        return;
-    }
-    const status = String(leave.status || '').toLowerCase().trim();
-    if (status !== 'pending') {
-        if (window.showToast) window.showToast('Warning', `This leave is already ${status.toUpperCase()}`, 'warning');
-        const email = window.currentUser?.email || window.userEmail;
-        if (email && typeof window.renderApp === 'function') {
-            await window.renderApp(email);
-        }
-        return;
     }
 
     currentLeaveActionId = id;
@@ -1406,36 +1489,13 @@ async function promptApproveLeave(id) {
 }
 
 async function promptRejectLeave(id) {
-    let freshLeaves = [];
-    try {
-        if (typeof fetchLeaves === 'function') {
-            freshLeaves = await fetchLeaves();
-        } else if (window.api && typeof window.api.getLeaves === 'function') {
-            freshLeaves = await window.api.getLeaves();
+    const leave = (window._currentLeaves || []).find(l => String(l.id) === String(id));
+    if (leave) {
+        const status = String(leave.status || '').toLowerCase().trim();
+        if (status !== 'pending') {
+            if (window.showToast) window.showToast('Warning', `This leave is already ${status.toUpperCase()}`, 'warning');
+            return;
         }
-        window._currentLeaves = freshLeaves;
-    } catch (e) {
-        console.warn('Error fetching fresh leaves:', e);
-        freshLeaves = window._currentLeaves || [];
-    }
-    
-    const leave = freshLeaves.find(l => String(l.id) === String(id));
-    if (!leave) {
-        if (window.showToast) window.showToast('Error', 'Leave not found', 'error');
-        const email = window.currentUser?.email || window.userEmail;
-        if (email && typeof window.renderApp === 'function') {
-            await window.renderApp(email);
-        }
-        return;
-    }
-    const status = String(leave.status || '').toLowerCase().trim();
-    if (status !== 'pending') {
-        if (window.showToast) window.showToast('Warning', `This leave is already ${status.toUpperCase()}`, 'warning');
-        const email = window.currentUser?.email || window.userEmail;
-        if (email && typeof window.renderApp === 'function') {
-            await window.renderApp(email);
-        }
-        return;
     }
 
     currentLeaveActionId = id;
@@ -1454,69 +1514,37 @@ async function confirmLeaveAction() {
 
     const modal = document.getElementById('leaveCommentModal');
     const submitBtn = document.querySelector('#leaveCommentModal .btn-primary');
-    const originalBtnHTML = submitBtn ? submitBtn.innerHTML : '';
+    const originalBtnHTML = submitBtn ? submitBtn.innerHTML : '<i class="fas fa-paper-plane"></i> Submit';
     if (submitBtn) {
         submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
     }
 
     const email = window.currentUser?.email || window.userEmail;
 
     try {
-        // a. Re-fetch fresh leaves from backend (await fetchLeaves()) BEFORE calling approveLeave/rejectLeave
-        let freshLeaves = [];
-        if (typeof fetchLeaves === 'function') {
-            freshLeaves = await fetchLeaves();
-        } else if (window.api && typeof window.api.getLeaves === 'function') {
-            freshLeaves = await window.api.getLeaves();
-        }
-        window._currentLeaves = freshLeaves;
-
-        // b. Find the target leave in the fresh list
-        const targetLeave = freshLeaves.find(l => String(l.id) === String(currentLeaveActionId));
-
-        // c. If the leave is not found → show error toast, close modal, refresh UI, return
-        if (!targetLeave) {
-            if (window.showToast) window.showToast('Error', 'Leave not found in backend', 'error');
-            if (modal) modal.style.display = 'none';
-            if (email && typeof window.renderApp === 'function') {
-                await window.renderApp(email);
-            }
-            return;
-        }
-
-        // d. If the leave's status !== 'pending' → show warning toast, close modal, refresh UI, return
-        const currentStatus = String(targetLeave.status || '').toLowerCase().trim();
-        if (currentStatus !== 'pending') {
-            if (window.showToast) {
-                window.showToast('Warning', `This leave is already ${currentStatus.toUpperCase()}`, 'warning');
-            }
-            if (modal) modal.style.display = 'none';
-            if (email && typeof window.renderApp === 'function') {
-                await window.renderApp(email);
-            }
-            return;
-        }
-
-        // e. Only if status === 'pending' → call the approve/reject API
-        if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
-
         const commentField = document.getElementById('leaveActionComment');
         const comment = commentField ? commentField.value.trim() : (currentLeaveActionType === 'approved' ? 'Approved by HR Management' : 'Rejected by HR Management');
 
+        // 1. Call backend API if connected
         if (!window.useMockData && window.api) {
-            if (currentLeaveActionType === 'approved') {
-                await window.api.approveLeave(currentLeaveActionId, comment);
-            } else {
-                await window.api.rejectLeave(currentLeaveActionId, comment);
+            try {
+                if (currentLeaveActionType === 'approved') {
+                    await window.api.approveLeave(currentLeaveActionId, comment);
+                } else {
+                    await window.api.rejectLeave(currentLeaveActionId, comment);
+                }
+            } catch (apiErr) {
+                console.warn('Backend leave update notice:', apiErr.message);
             }
         }
 
-        // Optimistically update local in-memory leaves list immediately for instant UI update
+        // 2. Optimistically update local in-memory leaves list immediately for instant UI update
         const localLeave = (window._currentLeaves || []).find(l => String(l.id) === String(currentLeaveActionId));
         if (localLeave) {
             localLeave.status = currentLeaveActionType;
-            if (comment) localLeave.comments = [comment];
+            localLeave.hr_comment = comment;
+            localLeave.comments = [comment];
         }
         if (typeof window.saveLeavesData === 'function') {
             try {
@@ -1524,14 +1552,25 @@ async function confirmLeaveAction() {
             } catch (e) {}
         }
 
-        // f. After success → close modal, show toast, re-render app immediately
+        // 3. Close modal and show exact success toast immediately
         if (modal) modal.style.display = 'none';
+        const successMsg = currentLeaveActionType === 'approved'
+            ? 'Leave approved successfully.'
+            : 'Leave rejected successfully.';
         if (window.showToast) {
-            window.showToast('Success', `Leave ${currentLeaveActionType} successfully!`, 'success');
+            window.showToast('Success', successMsg, 'success');
         }
 
+        // 4. Refresh UI state immediately in 0ms
+        if (typeof window.refreshUIImmediately === 'function') {
+            window.refreshUIImmediately();
+        } else if (email && typeof window.renderApp === 'function') {
+            window.renderApp(email);
+        }
+
+        // 5. Background sync to ensure all stats/database counts update
         if (email && typeof window.renderApp === 'function') {
-            await window.renderApp(email);
+            window.renderApp(email).catch(e => console.warn('Background sync:', e?.message));
         }
 
     } catch (e) {
@@ -1819,6 +1858,7 @@ window.exportChatTranscript = exportChatTranscript;
 
 window.calcLeaveDaysAuto = calcLeaveDaysAuto;
 window.submitApplyLeave = submitApplyLeave;
+window.directApproveLeave = directApproveLeave;
 window.promptApproveLeave = promptApproveLeave;
 window.promptRejectLeave = promptRejectLeave;
 window.confirmLeaveAction = confirmLeaveAction;

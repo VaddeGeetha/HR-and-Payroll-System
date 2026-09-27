@@ -171,6 +171,7 @@ const updateEmployee = async (req, res) => {
     const {
       name,
       email,
+      role,
       phone,
       gender,
       dob,
@@ -244,11 +245,13 @@ const updateEmployee = async (req, res) => {
 
     res.json({
       success: true,
-      message: "Employee deactivated successfully"
+      data: employee,
+      employee,
+      message: "Employee updated successfully"
     });
 
   } catch (err) {
-    console.error("Delete Employee Error:", err);
+    console.error("Update Employee Error:", err);
 
     res.status(500).json({
       success: false,

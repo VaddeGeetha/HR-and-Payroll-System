@@ -76,9 +76,23 @@ const getPendingLeaves = async (req, res) => {
       .order("created_at", { ascending: false });
 
     if (error) {
-      return res.status(500).json({
-        success: false,
-        message: error.message
+      const { data: rawLeaves, error: rawError } = await supabaseAdmin
+        .from("leaves")
+        .select("*")
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+
+      if (rawError) {
+        return res.status(500).json({
+          success: false,
+          message: rawError.message
+        });
+      }
+      return res.json({
+        success: true,
+        leaves: rawLeaves || [],
+        data: rawLeaves || [],
+        message: "Pending leaves fetched successfully"
       });
     }
 
@@ -350,21 +364,14 @@ const applyLeave = async (req, res) => {
 const approveLeave = async (req, res) => {
   try {
     const { id } = req.params;
+    const comment = req.body.comment || req.body.hr_comment || "Approved by HR Management";
 
-    // Frontend requirement uses "comment"
-    const comment = req.body.comment || req.body.hr_comment || null;
-
+    // 1. Fetch leave record directly without fragile schema join dependency
     const { data: leaveDetails, error: fetchError } = await supabaseAdmin
       .from("leaves")
-      .select(`
-        *,
-        employees (
-          name,
-          email
-        )
-      `)
+      .select("*")
       .eq("id", id)
-      .single();
+      .maybeSingle();
 
     if (fetchError || !leaveDetails) {
       return res.status(404).json({
@@ -376,11 +383,12 @@ const approveLeave = async (req, res) => {
     if (leaveDetails.status !== "pending") {
       return res.status(400).json({
         success: false,
-        message: "Only pending leaves can be approved"
+        message: `Only pending leaves can be approved (currently ${leaveDetails.status})`
       });
     }
 
-    const { data: leave, error } = await supabaseAdmin
+    // 2. Update status to approved in database
+    const { data: updatedLeave, error: updateError } = await supabaseAdmin
       .from("leaves")
       .update({
         status: "approved",
@@ -390,42 +398,42 @@ const approveLeave = async (req, res) => {
       .select()
       .single();
 
-    if (error) {
+    if (updateError) {
       return res.status(500).json({
         success: false,
-        message: error.message
+        message: updateError.message
       });
     }
 
-    // Notify employee in background (non-blocking)
-    if (process.env.EMAIL_USER && leaveDetails.employees?.email) {
-      transporter.sendMail({
-        from: process.env.EMAIL_USER,
-        to: leaveDetails.employees.email,
-        subject: "Leave Request Approved",
-        text: `Hello ${leaveDetails.employees.name},
-
-Your leave request has been approved by HR.
-
-Leave Type: ${leaveDetails.leave_type}
-Start Date: ${leaveDetails.start_date}
-End Date: ${leaveDetails.end_date}
-Days: ${leaveDetails.days}
-HR Comment: ${comment || "No comment"}
-
-Thank you.`
-      }).catch(emailError => console.error("Employee approval email failed:", emailError.message));
+    // 3. Notify employee in background (non-blocking)
+    if (process.env.EMAIL_USER && leaveDetails.employee_id) {
+      supabaseAdmin
+        .from("employees")
+        .select("name, email")
+        .eq("id", leaveDetails.employee_id)
+        .maybeSingle()
+        .then(({ data: emp }) => {
+          if (emp?.email) {
+            transporter.sendMail({
+              from: process.env.EMAIL_USER,
+              to: emp.email,
+              subject: "Leave Request Approved",
+              text: `Hello ${emp.name},\n\nYour leave request has been approved by HR.\n\nLeave Type: ${leaveDetails.leave_type}\nStart Date: ${leaveDetails.start_date}\nEnd Date: ${leaveDetails.end_date}\nDays: ${leaveDetails.days}\nHR Comment: ${comment}\n\nThank you.`
+            }).catch(emailError => console.error("Employee approval email failed:", emailError.message));
+          }
+        })
+        .catch(empError => console.warn("Employee email lookup notice:", empError.message));
     }
 
     res.json({
       success: true,
-      data: leave,
+      data: updatedLeave,
+      leave: updatedLeave,
       message: "Leave approved successfully"
     });
 
   } catch (err) {
     console.error("Approve Leave Error:", err);
-
     res.status(500).json({
       success: false,
       message: err.message
@@ -440,20 +448,14 @@ Thank you.`
 const rejectLeave = async (req, res) => {
   try {
     const { id } = req.params;
+    const comment = req.body.comment || req.body.hr_comment || "Rejected by HR Management";
 
-    const comment = req.body.comment || req.body.hr_comment || null;
-
+    // 1. Fetch leave record directly without fragile schema join dependency
     const { data: leaveDetails, error: fetchError } = await supabaseAdmin
       .from("leaves")
-      .select(`
-        *,
-        employees (
-          name,
-          email
-        )
-      `)
+      .select("*")
       .eq("id", id)
-      .single();
+      .maybeSingle();
 
     if (fetchError || !leaveDetails) {
       return res.status(404).json({
@@ -465,11 +467,12 @@ const rejectLeave = async (req, res) => {
     if (leaveDetails.status !== "pending") {
       return res.status(400).json({
         success: false,
-        message: "Only pending leaves can be rejected"
+        message: `Only pending leaves can be rejected (currently ${leaveDetails.status})`
       });
     }
 
-    const { data: leave, error } = await supabaseAdmin
+    // 2. Update status to rejected in database
+    const { data: updatedLeave, error: updateError } = await supabaseAdmin
       .from("leaves")
       .update({
         status: "rejected",
@@ -479,42 +482,42 @@ const rejectLeave = async (req, res) => {
       .select()
       .single();
 
-    if (error) {
+    if (updateError) {
       return res.status(500).json({
         success: false,
-        message: error.message
+        message: updateError.message
       });
     }
 
-    // Notify employee in background (non-blocking)
-    if (process.env.EMAIL_USER && leaveDetails.employees?.email) {
-      transporter.sendMail({
-        from: process.env.EMAIL_USER,
-        to: leaveDetails.employees.email,
-        subject: "Leave Request Rejected",
-        text: `Hello ${leaveDetails.employees.name},
-
-Your leave request has been rejected by HR.
-
-Leave Type: ${leaveDetails.leave_type}
-Start Date: ${leaveDetails.start_date}
-End Date: ${leaveDetails.end_date}
-Days: ${leaveDetails.days}
-HR Comment: ${comment || "No comment"}
-
-Please contact HR if you have any questions.`
-      }).catch(emailError => console.error("Employee rejection email failed:", emailError.message));
+    // 3. Notify employee in background (non-blocking)
+    if (process.env.EMAIL_USER && leaveDetails.employee_id) {
+      supabaseAdmin
+        .from("employees")
+        .select("name, email")
+        .eq("id", leaveDetails.employee_id)
+        .maybeSingle()
+        .then(({ data: emp }) => {
+          if (emp?.email) {
+            transporter.sendMail({
+              from: process.env.EMAIL_USER,
+              to: emp.email,
+              subject: "Leave Request Rejected",
+              text: `Hello ${emp.name},\n\nYour leave request has been rejected by HR.\n\nLeave Type: ${leaveDetails.leave_type}\nStart Date: ${leaveDetails.start_date}\nEnd Date: ${leaveDetails.end_date}\nDays: ${leaveDetails.days}\nHR Comment: ${comment}\n\nPlease contact HR if you have any questions.`
+            }).catch(emailError => console.error("Employee rejection email failed:", emailError.message));
+          }
+        })
+        .catch(empError => console.warn("Employee email lookup notice:", empError.message));
     }
 
     res.json({
       success: true,
-      data: leave,
+      data: updatedLeave,
+      leave: updatedLeave,
       message: "Leave rejected successfully"
     });
 
   } catch (err) {
     console.error("Reject Leave Error:", err);
-
     res.status(500).json({
       success: false,
       message: err.message

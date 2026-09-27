@@ -257,6 +257,26 @@ class ApiService {
         return this.request('/dashboard/charts');
     }
 
+    // ===== WFH SESSIONS =====
+    async startWFH(email, startTime = Date.now()) {
+        return this.request('/dashboard/wfh/start', {
+            method: 'POST',
+            body: JSON.stringify({ email, startTime })
+        });
+    }
+
+    async stopWFH(email, startTime) {
+        return this.request('/dashboard/wfh/stop', {
+            method: 'POST',
+            body: JSON.stringify({ email, startTime })
+        });
+    }
+
+    async getWFHStatus(email) {
+        const query = email ? `?email=${encodeURIComponent(email)}` : '';
+        return this.request(`/dashboard/wfh/status${query}`);
+    }
+
     // ===== LOGOUT =====
     logout() {
         this.token = null;

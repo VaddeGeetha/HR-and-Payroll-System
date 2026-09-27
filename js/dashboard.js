@@ -17,8 +17,13 @@ let workingHoursInterval = null;
 // ============================================================
 
 function showToast(title, message, type = 'info') {
-    const container = document.getElementById('toastContainer');
-    if (!container) return;
+    let container = document.getElementById('toastContainer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toastContainer';
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+    }
 
     const icons = {
         success: 'fa-check-circle',
@@ -40,7 +45,9 @@ function showToast(title, message, type = 'info') {
 
     toast.querySelector('.toast-close').addEventListener('click', () => toast.remove());
     container.appendChild(toast);
-    setTimeout(() => toast.remove(), 5000);
+    setTimeout(() => {
+        if (toast.parentNode) toast.remove();
+    }, 5000);
 }
 
 window.showToast = showToast;
@@ -208,92 +215,190 @@ window.switchSection = switchSection;
 // ===== WORK FROM HOME (WFH) & SHIFT TIMER TRACKER =====
 // ============================================================
 
+function getWFHSessionKey(userEmail) {
+    const clean = (userEmail || window.currentUser?.email || window.userEmail || 'employee').trim().toLowerCase();
+    return 'hr_wfh_session_' + clean;
+}
+
+function getStoredWFHSession(userEmail) {
+    const key = getWFHSessionKey(userEmail);
+    try {
+        const stored = localStorage.getItem(key);
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            if (parsed && typeof parsed === 'object') return parsed;
+        }
+    } catch (e) {}
+    return {
+        active: false,
+        startTime: null,
+        endTime: null,
+        durationSeconds: 0,
+        formattedDuration: '00:00:00',
+        isBreak: false,
+        breakStartTime: null,
+        totalBreakMs: 0
+    };
+}
+
+function formatDurationHHMMSS(totalSeconds) {
+    const s = Math.max(0, Math.floor(totalSeconds));
+    const hours = Math.floor(s / 3600);
+    const minutes = Math.floor((s % 3600) / 60);
+    const seconds = s % 60;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
 function initWorkingHoursTracker() {
     if (workingHoursInterval) clearInterval(workingHoursInterval);
 
-    const sessionKey = 'hr_employee_work_session';
-    let session = null;
-    try {
-        const stored = localStorage.getItem(sessionKey);
-        session = stored ? JSON.parse(stored) : null;
-    } catch (e) {
-        session = null;
-    }
-
-    if (!session || !session.startTime) {
-        session = {
-            startTime: Date.now(),
-            accumulatedMs: 4 * 3600 * 1000 + 22 * 60 * 1000 + 15 * 1000,
-            mode: 'WFH',
-            isBreak: false
-        };
-        localStorage.setItem(sessionKey, JSON.stringify(session));
-    }
+    const userEmail = (window.currentUser?.email || window.userEmail || '').trim().toLowerCase();
+    if (!userEmail) return;
 
     function updateTimerDisplay() {
-        const timerEl = document.getElementById('shiftTimerDisplay');
+        const timerEl = document.getElementById('liveWorkingTimerDisplay');
         if (!timerEl) return;
 
-        const now = Date.now();
-        let totalElapsedMs = session.accumulatedMs;
-        if (!session.isBreak) {
-            totalElapsedMs += (now - session.startTime);
+        const session = getStoredWFHSession(userEmail);
+        if (!session.active || !session.startTime) {
+            if (session.durationSeconds > 0) {
+                timerEl.textContent = session.formattedDuration || formatDurationHHMMSS(session.durationSeconds);
+            } else {
+                timerEl.textContent = '00:00:00';
+            }
+            return;
         }
 
-        const totalSeconds = Math.floor(totalElapsedMs / 1000);
-        const hours = Math.floor(totalSeconds / 3600);
-        const minutes = Math.floor((totalSeconds % 3600) / 60);
-        const seconds = totalSeconds % 60;
+        const now = Date.now();
+        let elapsedMs = now - session.startTime - (session.totalBreakMs || 0);
+        if (session.isBreak && session.breakStartTime) {
+            elapsedMs -= (now - session.breakStartTime);
+        }
 
-        const hStr = String(hours).padStart(2, '0');
-        const mStr = String(minutes).padStart(2, '0');
-        const sStr = String(seconds).padStart(2, '0');
-
-        timerEl.textContent = `${hStr}h : ${mStr}m : ${sStr}s`;
+        const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
+        timerEl.textContent = formatDurationHHMMSS(totalSeconds);
     }
 
     updateTimerDisplay();
     workingHoursInterval = setInterval(updateTimerDisplay, 1000);
 }
 
-function toggleWorkMode() {
-    const sessionKey = 'hr_employee_work_session';
-    let session = { mode: 'WFH', startTime: Date.now(), accumulatedMs: 0, isBreak: false };
-    try {
-        const stored = localStorage.getItem(sessionKey);
-        if (stored) session = JSON.parse(stored);
-    } catch (e) {}
+async function startWFH() {
+    const userEmail = (window.currentUser?.email || window.userEmail || '').trim().toLowerCase();
+    if (!userEmail) return;
 
-    session.mode = session.mode === 'WFH' ? 'Office' : 'WFH';
-    localStorage.setItem(sessionKey, JSON.stringify(session));
-    showToast('Work Mode Updated', `Shift mode switched to: ${session.mode === 'WFH' ? 'Work From Home' : 'Office Working'}`, 'info');
-    if (currentUser?.email) renderApp(currentUser.email);
+    const startTime = Date.now();
+    const session = {
+        active: true,
+        startTime: startTime,
+        startDate: new Date(startTime).toISOString(),
+        endTime: null,
+        durationSeconds: 0,
+        formattedDuration: '00:00:01',
+        isBreak: false,
+        breakStartTime: null,
+        totalBreakMs: 0
+    };
+
+    const key = getWFHSessionKey(userEmail);
+    localStorage.setItem(key, JSON.stringify(session));
+
+    showToast('Success', '✅ WFH started successfully.', 'success');
+
+    // Sync with backend API in background
+    if (window.api?.startWFH) {
+        window.api.startWFH(userEmail, startTime).catch(e => console.warn('WFH start API sync:', e.message));
+    }
+
+    if (window.renderApp) {
+        await window.renderApp(userEmail);
+    }
+}
+
+async function stopWFH() {
+    const userEmail = (window.currentUser?.email || window.userEmail || '').trim().toLowerCase();
+    if (!userEmail) return;
+
+    const session = getStoredWFHSession(userEmail);
+    const now = Date.now();
+    let elapsedMs = session.startTime ? (now - session.startTime - (session.totalBreakMs || 0)) : 0;
+    if (session.isBreak && session.breakStartTime) {
+        elapsedMs -= (now - session.breakStartTime);
+    }
+
+    const durationSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
+    const formattedDuration = formatDurationHHMMSS(durationSeconds);
+
+    const completedSession = {
+        active: false,
+        startTime: session.startTime,
+        endTime: now,
+        durationSeconds: durationSeconds,
+        formattedDuration: formattedDuration,
+        completedAt: new Date(now).toISOString(),
+        isBreak: false,
+        breakStartTime: null,
+        totalBreakMs: session.totalBreakMs || 0
+    };
+
+    const key = getWFHSessionKey(userEmail);
+    localStorage.setItem(key, JSON.stringify(completedSession));
+
+    if (workingHoursInterval) clearInterval(workingHoursInterval);
+
+    showToast('Success', `✅ WFH ended successfully. Total duration: ${formattedDuration}`, 'success');
+
+    // Sync with backend API in background
+    if (window.api?.stopWFH) {
+        window.api.stopWFH(userEmail, session.startTime).catch(e => console.warn('WFH stop API sync:', e.message));
+    }
+
+    if (window.renderApp) {
+        await window.renderApp(userEmail);
+    }
 }
 
 function toggleWorkBreak() {
-    const sessionKey = 'hr_employee_work_session';
-    let session = { mode: 'WFH', startTime: Date.now(), accumulatedMs: 0, isBreak: false };
-    try {
-        const stored = localStorage.getItem(sessionKey);
-        if (stored) session = JSON.parse(stored);
-    } catch (e) {}
+    const userEmail = (window.currentUser?.email || window.userEmail || '').trim().toLowerCase();
+    if (!userEmail) return;
 
+    const session = getStoredWFHSession(userEmail);
+    if (!session.active) return;
+
+    const now = Date.now();
     if (!session.isBreak) {
-        session.accumulatedMs += (Date.now() - session.startTime);
         session.isBreak = true;
-        showToast('Break Started', 'Working shift timer paused for break.', 'warning');
+        session.breakStartTime = now;
+        showToast('Info', 'WFH shift timer paused for break.', 'info');
     } else {
-        session.startTime = Date.now();
+        if (session.breakStartTime) {
+            session.totalBreakMs = (session.totalBreakMs || 0) + (now - session.breakStartTime);
+        }
         session.isBreak = false;
-        showToast('Work Resumed', 'Working shift timer resumed.', 'success');
+        session.breakStartTime = null;
+        showToast('Success', 'WFH shift timer resumed.', 'success');
     }
-    localStorage.setItem(sessionKey, JSON.stringify(session));
-    if (currentUser?.email) renderApp(currentUser.email);
+
+    const key = getWFHSessionKey(userEmail);
+    localStorage.setItem(key, JSON.stringify(session));
+
+    if (window.renderApp) {
+        window.renderApp(userEmail);
+    }
 }
 
+function toggleWorkMode() {
+    showToast('Info', 'Shift mode is managed via WFH Start/End controls.', 'info');
+}
+
+window.getWFHSessionKey = getWFHSessionKey;
+window.getStoredWFHSession = getStoredWFHSession;
+window.formatDurationHHMMSS = formatDurationHHMMSS;
 window.initWorkingHoursTracker = initWorkingHoursTracker;
-window.toggleWorkMode = toggleWorkMode;
+window.startWFH = startWFH;
+window.stopWFH = stopWFH;
 window.toggleWorkBreak = toggleWorkBreak;
+window.toggleWorkMode = toggleWorkMode;
 
 // ============================================================
 // ===== RENDER APP (REAL DATABASE INTEGRATION) =====
@@ -494,6 +599,45 @@ function renderFallback() {
     
 }
 
+function renderCurrentSectionFromState() {
+    const userEmail = window.currentUser?.email || window.userEmail;
+    if (!userEmail) return;
+    const role = window.currentUser?.role || getRole(userEmail);
+    const employees = window._currentEmployees || [];
+    const leaves = window._currentLeaves || [];
+    const stats = window._currentStats || {};
+    const chartData = window._currentChartData || {};
+
+    const renderers = {
+        dashboard: window.renderDashboard || renderFallback,
+        employees: window.renderEmployees || renderFallback,
+        departments: window.renderDepartments || renderFallback,
+        leaves: window.renderLeaves || renderFallback,
+        apply_leave: window.renderApplyLeaveSection || renderFallback,
+        my_leaves: window.renderMyLeavesSection || renderFallback,
+        leave_balance: window.renderLeaveBalanceSection || renderFallback,
+        payroll: window.renderPayroll || renderFallback,
+        my_payslips: window.renderMyPayslipsSection || renderFallback,
+        reports: window.renderReports || renderFallback,
+        messages: window.renderMessages || renderFallback,
+        profile: window.renderProfile || renderFallback,
+        attendance: window.renderAttendance || renderFallback
+    };
+
+    Object.keys(renderers).forEach(key => {
+        const div = document.getElementById(`section-${key}`);
+        if (div) {
+            try {
+                div.innerHTML = renderers[key](userEmail, role, employees, leaves, stats, chartData);
+            } catch (error) {
+                console.error(`❌ Error updating ${key} from state:`, error);
+            }
+        }
+    });
+}
+
+window.renderCurrentSectionFromState = renderCurrentSectionFromState;
+window.refreshUIImmediately = renderCurrentSectionFromState;
 window.renderApp = renderApp;
 
 // ============================================================
