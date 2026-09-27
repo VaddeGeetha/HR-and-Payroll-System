@@ -12,6 +12,7 @@ const {
   rejectLeave
 } = require("../controllers/leaveController");
 
+
 router.post("/", authorize("admin", "hr", "employee"), applyLeave);
 router.get("/", authorize("admin", "hr", "employee"), getLeaves);
 router.get("/pending", authorize("admin", "hr"), getPendingLeaves);

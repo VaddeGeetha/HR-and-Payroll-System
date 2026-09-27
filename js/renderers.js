@@ -9,6 +9,8 @@ var currentLeaveActionId = null;
 var currentLeaveActionType = null;
 window.currentLeaveActionId = null;
 window.currentLeaveActionType = null;
+let currentLeaveActionId = null;
+let currentLeaveActionType = null;
 let activeDeptThreadFilter = 'All';
 let currentChatSearchQuery = '';
 let employeeThreadSearchQuery = '';
@@ -235,6 +237,36 @@ function renderEmployeeDashboard(userEmail, employees, leaves, stats) {
             </div>
             `;
         })()}
+        <div class="stat-card wfh-tracker-card" style="margin-top:1.2rem;margin-bottom:1.5rem;padding:1.4rem;background:linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);border-left:5px solid #22a65e;">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;">
+                <div style="display:flex;align-items:center;gap:1rem;">
+                    <div style="background:#d4edda;width:3.2rem;height:3.2rem;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#155724;font-size:1.6rem;flex-shrink:0;">
+                        <i class="fas fa-laptop-house"></i>
+                    </div>
+                    <div>
+                        <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">
+                            <h3 style="margin:0;color:var(--text-primary);font-size:1.15rem;" id="wfhCurrentModeTitle">Work From Home (WFH) Active</h3>
+                            <span class="badge" style="background:#d4edda;color:#155724;display:flex;align-items:center;gap:0.4rem;font-weight:700;">
+                                <span class="live-pulse-dot"></span> Live Shift
+                            </span>
+                        </div>
+                        <div style="color:var(--text-secondary);font-size:0.85rem;margin-top:0.25rem;">
+                            <i class="fas fa-clock" style="color:var(--primary);"></i> Working hours started upon login
+                        </div>
+                    </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;">
+                    <div>
+                        <div style="font-size:0.75rem;color:var(--text-secondary);text-transform:uppercase;font-weight:700;">Today's Working Hours</div>
+                        <div id="liveWorkingTimerDisplay" style="font-size:1.8rem;font-weight:800;color:#0b2b4a;font-family:monospace;">00h : 00m : 00s</div>
+                    </div>
+                    <div style="display:flex;gap:0.5rem;">
+                        <button class="btn-secondary-custom btn-sm" onclick="window.toggleWorkMode()"><i class="fas fa-building"></i> Switch to Office</button>
+                        <button class="btn-warning btn-sm" onclick="window.toggleWorkBreak()" style="background:#fff3cd;color:#856404;border:1px solid #ffeeba;font-weight:600;"><i class="fas fa-coffee"></i> Take Break</button>
+                    </div>
+                </div>
+            </div>
+        </div>
         <div class="stats-grid">
             <div class="stat-card"><div class="stat-label"><i class="fas fa-calendar-check" style="color:var(--primary);"></i> Leave Balance</div><div class="stat-value" style="color:var(--primary);">${totalRemainingLeaves} <span style="font-size:0.9rem;color:var(--text-secondary);">Days</span></div><div style="font-size:0.8rem;color:var(--text-secondary);margin-top:0.4rem;">CL: <strong>${leaveBalances.casual?.remaining || 3}d</strong> | SL: <strong>${leaveBalances.sick?.remaining || 3}d</strong> | EL: <strong>${leaveBalances.earned?.remaining || 10}d</strong></div></div>
             <div class="stat-card"><div class="stat-label"><i class="fas fa-hourglass-half" style="color:#f0ad4e;"></i> Pending</div><div class="stat-value" style="color:#f0ad4e;">${pendingReqs.length}</div><div style="font-size:0.8rem;color:var(--text-secondary);margin-top:0.4rem;">${pendingReqs.length > 0 ? pendingReqs[0].type : 'None'}</div></div>
@@ -461,6 +493,163 @@ function renderHRLeaveDesk(userEmail, employees, leaves) {
                                         <button class="btn-success btn-sm" onclick="window.directApproveLeave('${req.id}', this)" title="Quick Approve"><i class="fas fa-check"></i> Approve</button>
                                         <button class="btn-danger btn-sm" onclick="window.promptRejectLeave('${req.id}')" title="Reject Leave"><i class="fas fa-times"></i> Reject</button>
                                     </div>
+}
+
+// ============================================================
+// ===== 4. LEAVE MANAGEMENT =====
+// ============================================================
+
+function renderLeaves(userEmail, role, employees, leaves) {
+    if (role === 'hr' || role === 'admin') return renderHRLeaveDesk(userEmail, employees, leaves);
+    return renderMyLeavesSection(userEmail, role, employees, leaves);
+}
+
+function renderHRLeaveDesk(userEmail, employees, leaves) {
+    // ✅ Filter by pending status
+    const pending = (leaves || []).filter(l => l.status === 'pending');
+    const processed = (leaves || []).filter(l => l.status !== 'pending');
+
+    return `
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
+            <div><h2>HR Leave Management Desk</h2><div class="subhead">Review, approve, or reject leave requests</div></div>
+            <span class="badge" style="background:#fde8e8;color:#dc3545;font-weight:700;padding:0.4rem 1rem;">${pending.length} Pending Approval</span>
+        </div>
+        <div class="detail-list" style="margin-bottom:1.5rem;">
+            <h3 style="margin:0 0 1rem 0;"><i class="fas fa-clock" style="color:#f0ad4e;margin-right:8px;"></i> Awaiting HR Action</h3>
+            <div class="custom-table-responsive">
+                <table class="styled-table">
+                    <thead><tr><th>Employee</th><th>Department</th><th>Leave Type</th><th>Period</th><th>Days</th><th>Reason</th><th>Action</th></tr></thead>
+                    <tbody>
+                        ${pending.length === 0 ? `<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-light);">No pending requests</td></tr>` : ''}
+                        ${pending.map(req => `
+                            <tr>
+                                <td>
+                                    <div style="display:flex;align-items:center;gap:0.6rem;">
+                                        <img src="${req.photo || DEFAULT_AVATARS.male}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;"/>
+                                        <div>
+                                            <strong>${req.employee}</strong>
+                                            <div style="font-size:0.75rem;color:var(--text-light);">${req.email}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td><span class="badge" style="background:#e8f0fe;color:var(--primary);">${req.department || 'General'}</span></td>
+                                <td><span class="tag-pill available">${req.type}</span></td>
+                                <td>${req.from} to ${req.to}</td>
+                                <td><strong>${req.days} Day(s)</strong></td>
+                                <td style="max-width:220px;">${req.reason}</td>
+                                <td>
+                                    <div style="display:flex;gap:0.4rem;">
+                                        <button class="btn-success btn-sm" onclick="window.promptApproveLeave(${req.id})"><i class="fas fa-check"></i> Approve</button>
+                                        <button class="btn-danger btn-sm" onclick="window.promptRejectLeave(${req.id})"><i class="fas fa-times"></i> Reject</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="detail-list">
+            <h3 style="margin:0 0 1rem 0;"><i class="fas fa-history" style="color:var(--primary);margin-right:8px;"></i> Processed History</h3>
+            <div class="custom-table-responsive">
+                <table class="styled-table">
+                    <thead><tr><th>Employee</th><th>Type</th><th>Period</th><th>Days</th><th>Status</th><th>HR Comment</th></tr></thead>
+                    <tbody>
+                        ${processed.length === 0 ? `<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-light);">No processed leaves</td></tr>` : ''}
+                        ${processed.map(req => `
+                            <tr>
+                                <td><strong>${req.employee}</strong><div style="font-size:0.75rem;color:var(--text-light);">${req.email}</div></td>
+                                <td>${req.type}</td>
+                                <td>${req.from} to ${req.to}</td>
+                                <td>${req.days} Days</td>
+                                <td><span class="badge" style="background:${req.status==='approved'?'#d4edda':'#fde8e8'};color:${req.status==='approved'?'#155724':'#dc3545'};">${(req.status || '').toUpperCase()}</span></td>
+                                <td style="font-size:0.85rem;color:var(--text-secondary);">${req.comments.length > 0 ? req.comments.join('; ') : '—'}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div id="leaveCommentModal" class="modal-backdrop" style="display:none;">
+            <div style="background:var(--card-bg);border-radius:var(--radius);padding:1.8rem;max-width:440px;width:90%;">
+                <h3 style="margin-top:0;" id="leaveActionModalTitle">Approve Leave</h3>
+                <div class="input-group"><label>HR Comment</label><textarea id="leaveActionComment" rows="3" style="width:100%;padding:0.6rem;border:2px solid var(--border);border-radius:var(--radius-sm);"></textarea></div>
+                <div style="display:flex;gap:0.8rem;margin-top:1.2rem;">
+                    <button class="btn-primary" onclick="window.confirmLeaveAction()"><i class="fas fa-paper-plane"></i> Submit</button>
+                    <button class="btn-secondary-custom" onclick="document.getElementById('leaveCommentModal').style.display='none'">Cancel</button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function renderApplyLeaveSection(userEmail, role, employees) {
+    const currentEmp = employees.find(e => e.email && e.email.toLowerCase() === userEmail.toLowerCase()) || employees[0];
+    const balances = currentEmp?.leave_balances || {};
+    return `
+        <div style="margin-bottom:1.5rem;"><h2>Apply for Leave</h2><div class="subhead">Submit leave applications with auto-duration calculation</div></div>
+        <div class="detail-list" style="max-width:720px;margin:0 auto;">
+            <form id="applyLeaveForm" onsubmit="window.submitApplyLeave(event)">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;">
+                    <div class="input-group" style="margin:0;grid-column:1/-1;">
+                        <label>Leave Type *</label>
+                        <select id="leaveTypeSelect" required style="width:100%;padding:0.7rem;border:2px solid var(--border);border-radius:var(--radius-sm);">
+                            <option value="Casual Leave">Casual Leave (${balances.casual?.remaining || 3}d)</option>
+                            <option value="Sick Leave">Sick Leave (${balances.sick?.remaining || 3}d)</option>
+                            <option value="Earned Leave">Earned Leave (${balances.earned?.remaining || 10}d)</option>
+                        </select>
+                    </div>
+                    <div class="input-group" style="margin:0;"><label>From *</label><input type="date" id="leaveFromDate" required onchange="window.calcLeaveDaysAuto()"></div>
+                    <div class="input-group" style="margin:0;"><label>To *</label><input type="date" id="leaveToDate" required onchange="window.calcLeaveDaysAuto()"></div>
+                    <div class="input-group" style="margin:0;grid-column:1/-1;"><label>Days (Working Days Only)</label><input type="number" id="leaveCalculatedDays" readonly value="0" style="background:var(--border);font-weight:700;"></div>
+                    <div class="input-group" style="margin:0;grid-column:1/-1;"><label>Reason *</label><textarea id="leaveReasonText" required rows="3" style="width:100%;padding:0.7rem;border:2px solid var(--border);border-radius:var(--radius-sm);"></textarea></div>
+                </div>
+                <div style="margin-top:1.5rem;display:flex;gap:0.8rem;">
+                    <button type="submit" class="btn-primary" style="padding:0.75rem 2rem;"><i class="fas fa-paper-plane"></i> Submit</button>
+                    <button type="button" class="btn-secondary-custom" onclick="window.switchSection('my_leaves')">View My Leaves</button>
+                </div>
+            </form>
+        </div>
+    `;
+}
+
+function renderMyLeavesSection(userEmail, role, employees, leaves) {
+    const currentEmp = employees.find(e => e.email && e.email.toLowerCase() === userEmail.toLowerCase()) 
+        || window.currentUser?.empData;
+    
+    // ✅ Match leaves by employee_id (numeric)
+    const myLeavesList = (leaves || []).filter(l => {
+        if (!currentEmp) return false;
+        return String(l.employee_id) === String(currentEmp.id) ||
+               (l.email && l.email.toLowerCase() === userEmail.toLowerCase());
+    });
+
+    return `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem;">
+            <div><h2>My Leave Requests</h2><div class="subhead">Track all your applications</div></div>
+            <button class="btn-primary" onclick="window.switchSection('apply_leave')"><i class="fas fa-plus"></i> Apply for Leave</button>
+        </div>
+        <div class="detail-list">
+            <div class="custom-table-responsive">
+                <table class="styled-table">
+                    <thead><tr><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Reason</th><th>Status</th><th>HR Comments</th><th>Action</th></tr></thead>
+                    <tbody>
+                        ${myLeavesList.length === 0 ? `<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-light);">No leaves requested yet</td></tr>` : ''}
+                        ${myLeavesList.map(l => `
+                            <tr>
+                                <td><strong>${l.type}</strong></td>
+                                <td>${l.from}</td>
+                                <td>${l.to}</td>
+                                <td><span class="tag-pill available">${l.days} Day(s)</span></td>
+                                <td>${l.reason}</td>
+                                <td><span class="badge" style="background:${l.status==='approved'?'#d4edda':l.status==='rejected'?'#fde8e8':'#fff3cd'};color:${l.status==='approved'?'#155724':l.status==='rejected'?'#dc3545':'#856404'};">${(l.status||'pending').toUpperCase()}</span></td>
+                                <td style="font-size:0.85rem;color:var(--text-secondary);">${l.comments.length > 0 ? l.comments.join('; ') : 'Under review'}</td>
+                                <td>
+                                    ${l.status === 'pending' ? `
+                                        <button class="btn-danger btn-sm" onclick="window.deleteMyLeave(${l.id})" title="Withdraw">
+                                            <i class="fas fa-trash"></i> Withdraw
+                                        </button>
+                                    ` : '—'}
                                 </td>
                             </tr>
                         `).join('')}
@@ -1681,6 +1870,347 @@ async function downloadPayslipPDF(payslipId) {
         viewPayslipModal(payslipId);
     } finally {
         if (document.body.contains(tempDiv)) document.body.removeChild(tempDiv);
+function renderProfile(userEmail, role) {
+    const employees = window._currentEmployees || [];
+    const emp = employees.find(e => e.email && e.email.toLowerCase() === userEmail.toLowerCase()) 
+        || window.currentUser?.empData 
+        || { name: getNameFromEmail(userEmail), email: userEmail, id: 1, department: 'IT', designation: 'Employee', phone: '', annual_ctc: 'N/A', pan: 'N/A', aadhaar: 'N/A', dob: '1995-01-01', joining_date: '2024-01-01', photo: DEFAULT_AVATARS.alex };
+    return `
+        <h2>Employee Profile</h2>
+        <div class="subhead">Your official details</div>
+        <div class="detail-list" style="margin-top:1.5rem;max-width:900px;">
+            <div style="display:grid;grid-template-columns:200px 1fr;gap:1.5rem;align-items:start;">
+                <div style="text-align:center;">
+                    <img src="${emp.photo || DEFAULT_AVATARS.alex}" style="width:150px;height:150px;border-radius:50%;object-fit:cover;border:4px solid var(--primary-light);"/>
+                    <div style="margin-top:0.8rem;font-weight:700;">${emp.name}</div>
+                    <div style="font-size:0.85rem;color:var(--text-secondary);">${emp.designation} · ${emp.department}</div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                    <div><strong>Email:</strong> ${emp.email}</div>
+                    <div><strong>Phone:</strong> ${emp.phone || 'N/A'}</div>
+                    <div><strong>Gender:</strong> ${emp.gender || 'N/A'}</div>
+                    <div><strong>DOB:</strong> ${emp.dob || 'N/A'}</div>
+                    <div><strong>DOJ:</strong> ${emp.joining_date || 'N/A'}</div>
+                    <div><strong>Annual CTC:</strong> ${emp.annual_ctc || 'N/A'}</div>
+                    <div><strong>PAN:</strong> ${emp.pan || 'N/A'}</div>
+                    <div><strong>Aadhaar:</strong> ${emp.aadhaar || 'N/A'}</div>
+                    <div style="grid-column:1/-1;"><strong>Address:</strong> ${emp.address || 'N/A'}</div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function renderAttendance() {
+    return `
+        <div class="detail-list" style="text-align:center;padding:3rem;">
+            <i class="fas fa-clock" style="font-size:3rem;color:var(--primary);margin-bottom:1rem;"></i>
+            <h2>Attendance Tracker</h2>
+            <div class="subhead">Compliance: 95.4%</div>
+        </div>
+    `;
+}
+
+// ============================================================
+// ===== ACTION HANDLERS =====
+// ============================================================
+
+function refreshMessagesStream() {
+    let userEmail = (window.currentUser?.email || window.userEmail || '').trim().toLowerCase();
+    if (!userEmail) {
+        try { const u = localStorage.getItem('user'); if (u) userEmail = JSON.parse(u).email?.toLowerCase(); } catch(e) {}
+    }
+    if (!userEmail) return;
+    const role = (typeof window.getRole === 'function') ? window.getRole(userEmail) : 'employee';
+    const container = document.getElementById('section-messages');
+    if (container) container.innerHTML = renderMessages(userEmail, role);
+}
+
+function selectChatRecipient(email) {
+    activeChatRecipient = email;
+    refreshMessagesStream();
+}
+
+function filterEmployeesList(query) { employeeThreadSearchQuery = query || ''; refreshMessagesStream(); }
+function filterDeptThreads(dept) { activeDeptThreadFilter = dept; refreshMessagesStream(); }
+function selectSuggestedChip(text, cat) {
+    const input = document.getElementById('corpChatInputBox');
+    if (input) { input.value = text; input.focus(); }
+    if (cat) { const s = document.getElementById('corpChatCategory'); if (s) s.value = cat; }
+}
+function toggleInChatSearch() {
+    const w = document.getElementById('corpInChatSearchWrapper');
+    if (w) { const h = w.style.display === 'none'; w.style.display = h ? 'flex' : 'none'; if (h) document.getElementById('corpInChatSearchInput')?.focus(); else clearInChatSearch(); }
+}
+function searchInCurrentChat(q) { currentChatSearchQuery = q || ''; refreshMessagesStream(); }
+function clearInChatSearch() { currentChatSearchQuery = ''; const i = document.getElementById('corpInChatSearchInput'); if (i) i.value = ''; refreshMessagesStream(); }
+
+function handleSendChatMessage() {
+    const input = document.getElementById('corpChatInputBox');
+    const text = input ? input.value.trim() : '';
+    if (!text) return;
+    const catSelect = document.getElementById('corpChatCategory');
+    const category = catSelect ? catSelect.value : 'General Inquiry';
+    let userEmail = (window.currentUser?.email || window.userEmail || '').trim().toLowerCase();
+    if (!userEmail) userEmail = 'alex.employee@gmail.com';
+    const role = (typeof window.getRole === 'function') ? window.getRole(userEmail) : 'employee';
+    const isHR = role === 'hr' || role === 'admin';
+    const employees = window._currentEmployees || [];
+    const userEmp = employees.find(e => e.email?.toLowerCase() === userEmail);
+    const fromName = userEmp ? userEmp.name : (window.currentUser?.name || (isHR ? 'Sarah Williams' : 'Alex Johnson'));
+    const hrAccount = employees.find(e => e.role === 'hr' || e.role === 'admin') || { email: 'hr.hr@gmail.com', name: 'Sarah Williams' };
+    const toEmail = isHR ? (activeChatRecipient || employees.find(e => e.role === 'employee')?.email || 'alex.employee@gmail.com') : (hrAccount.email || 'hr.hr@gmail.com');
+    const toEmp = employees.find(e => e.email?.toLowerCase() === toEmail?.toLowerCase());
+    const toName = isHR ? (toEmp?.name || 'Employee') : (hrAccount.name || 'HR');
+    const newMsg = {
+        id: Date.now(), from_email: userEmail, fromEmail: userEmail, fromName,
+        to_email: toEmail, toEmail, toName, senderRole: role, category, text,
+        timestamp: Date.now(), created_at: new Date().toISOString()
+    };
+    input.value = ''; input.focus();
+    const msgs = window._currentMessages || [];
+    msgs.push(newMsg);
+    if (typeof window.saveMessagesData === 'function') window.saveMessagesData(msgs);
+    else try { localStorage.setItem('hr_connect_messages', JSON.stringify(msgs)); } catch(e) {}
+    window._currentMessages = msgs;
+    refreshMessagesStream();
+    if (window.showToast) window.showToast('Message Sent', `Delivered to ${toName}`, 'success');
+}
+
+function exportChatTranscript() {
+    let userEmail = (window.currentUser?.email || window.userEmail || '').trim().toLowerCase();
+    const role = (typeof window.getRole === 'function') ? window.getRole(userEmail) : 'employee';
+    const isHR = role === 'hr' || role === 'admin';
+    const employees = window._currentEmployees || [];
+    const hrAccount = employees.find(e => e.role === 'hr' || e.role === 'admin') || { email: 'hr.hr@gmail.com', name: 'Sarah Williams' };
+    const targetEmail = isHR ? activeChatRecipient : (hrAccount.email || 'hr.hr@gmail.com');
+    const targetEmp = employees.find(e => e.email?.toLowerCase() === targetEmail?.toLowerCase()) || { name: isHR ? 'Employee' : 'HR Operations' };
+    const normalizeFn = window.normalizeMessage || (m => m);
+    const allMessages = (window._currentMessages || []).map(normalizeFn).filter(Boolean);
+    const thread = isHR
+        ? allMessages.filter(m => (m.from_email || '').toLowerCase() === targetEmail?.toLowerCase() || (m.to_email || '').toLowerCase() === targetEmail?.toLowerCase())
+        : allMessages.filter(m => (m.from_email || '').toLowerCase() === userEmail || (m.to_email || '').toLowerCase() === userEmail);
+    if (thread.length === 0) { if (window.showToast) window.showToast('Notice', 'No messages to export', 'info'); return; }
+    let transcript = `HR CONNECT PORTAL - TRANSCRIPT\nGenerated: ${new Date().toLocaleString('en-IN')}\nParticipants: ${window.currentUser?.name || userEmail} & ${targetEmp.name}\nTotal: ${thread.length}\n${'='.repeat(60)}\n\n`;
+    thread.forEach(msg => {
+        transcript += `[${new Date(msg.timestamp).toLocaleString('en-IN')}] ${msg.fromName || msg.from_email}:\n${msg.category ? '[' + msg.category + '] ' : ''}${msg.text}\n\n`;
+    });
+    const blob = new Blob([transcript], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `HR_Transcript_${(targetEmp.name || 'Chat').replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.txt`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    if (window.showToast) window.showToast('Success', 'Transcript downloaded', 'success');
+}
+
+// ===== LEAVE ACTIONS =====
+function calcLeaveDaysAuto() {
+    const from = document.getElementById('leaveFromDate')?.value;
+    const to = document.getElementById('leaveToDate')?.value;
+    const daysInput = document.getElementById('leaveCalculatedDays');
+    if (!daysInput || !from || !to) return;
+    const d1 = new Date(from), d2 = new Date(to);
+    if (isNaN(d1) || isNaN(d2) || d2 < d1) { daysInput.value = 0; return; }
+    let workingDays = 0;
+    for (let d = new Date(d1); d <= d2; d.setDate(d.getDate() + 1)) {
+        const day = d.getDay();
+        if (day !== 0 && day !== 6) workingDays++;
+    }
+    daysInput.value = workingDays;
+}
+
+async function submitApplyLeave(event) {
+    event.preventDefault();
+    const type = document.getElementById('leaveTypeSelect').value;
+    const from = document.getElementById('leaveFromDate').value;
+    const to = document.getElementById('leaveToDate').value;
+    const days = parseInt(document.getElementById('leaveCalculatedDays').value) || 0;
+    const reason = document.getElementById('leaveReasonText').value.trim();
+    if (!type || !from || !to || !reason || days < 1) {
+        if (window.showToast) window.showToast('Error', 'Fill all fields with at least 1 working day.', 'error');
+        return;
+    }
+    let userEmail = (window.currentUser?.email || window.userEmail || '').toLowerCase();
+    const emp = (window._currentEmployees || []).find(e => e.email?.toLowerCase() === userEmail);
+    const payload = { type, from, to, days, reason, email: userEmail, employee_id: emp?.id };
+    if (!window.useMockData && window.api) {
+        try {
+            await window.api.applyLeave(payload);
+            if (window.showToast) window.showToast('Success', 'Leave submitted!', 'success');
+            if (typeof fetchLeaves === 'function') window._currentLeaves = await fetchLeaves();
+            if (window.renderApp) await window.renderApp(userEmail);
+            if (window.switchSection) window.switchSection('my_leaves');
+            return;
+        } catch(e) {
+            if (window.showToast) window.showToast('Error', e.message, 'error');
+            return;
+        }
+    }
+    const leaves = window._currentLeaves || [];
+    leaves.unshift({ id: Date.now(), ...payload, status: 'pending' });
+    window._currentLeaves = leaves;
+    if (window.showToast) window.showToast('Success', 'Submitted!', 'success');
+}
+
+function promptApproveLeave(id) {
+    currentLeaveActionId = id;
+    currentLeaveActionType = 'approved';
+    document.getElementById('leaveActionModalTitle').textContent = 'Approve Leave';
+    document.getElementById('leaveActionComment').value = 'Approved by HR Management';
+    document.getElementById('leaveCommentModal').style.display = 'flex';
+}
+function promptRejectLeave(id) {
+    currentLeaveActionId = id;
+    currentLeaveActionType = 'rejected';
+    document.getElementById('leaveActionModalTitle').textContent = 'Reject Leave';
+    document.getElementById('leaveActionComment').value = 'Rejected due to project deadlines';
+    document.getElementById('leaveCommentModal').style.display = 'flex';
+}
+async function confirmLeaveAction() {
+    const comment = document.getElementById('leaveActionComment')?.value.trim() || '';
+
+    if (!window.useMockData && window.api) {
+        try {
+            if (window.showToast) window.showToast('Info', 'Updating leave status...', 'info');
+            
+            if (currentLeaveActionType === 'approved') {
+                await window.api.approveLeave(currentLeaveActionId);
+            } else {
+                await window.api.rejectLeave(currentLeaveActionId);
+            }
+            
+            if (window.showToast) window.showToast('Success', `Leave ${currentLeaveActionType}!`, 'success');
+            
+            // Close modal
+            const modal = document.getElementById('leaveCommentModal');
+            if (modal) modal.style.display = 'none';
+            
+            // ✅ FIX: Re-fetch leaves from backend, then re-render
+            if (typeof fetchLeaves === 'function') {
+                window._currentLeaves = await fetchLeaves();
+            }
+            
+            // ✅ FIX: Use window.currentUser (set by dashboard.js)
+            const email = window.currentUser?.email || window.userEmail || localStorage.getItem('user') && JSON.parse(localStorage.getItem('user')).email;
+            if (email && typeof window.renderApp === 'function') {
+                await window.renderApp(email);
+            }
+            
+            return;
+        } catch (e) {
+            console.error('Leave action error:', e);
+            if (window.showToast) window.showToast('Error', e.message || 'Failed', 'error');
+            return;
+        }
+    }
+    // Mock fallback
+    const leaves = window._currentLeaves || [];
+    const req = leaves.find(r => String(r.id) === String(currentLeaveActionId));
+    if (req) {
+        req.status = currentLeaveActionType;
+        if (comment) req.comments = [comment];
+        window.saveLeavesData(leaves);
+        if (window.showToast) window.showToast('Success', `Leave ${currentLeaveActionType}`, 'success');
+    }
+    const modal = document.getElementById('leaveCommentModal');
+    if (modal) modal.style.display = 'none';
+    const email = window.currentUser?.email;
+    if (email && window.renderApp) await window.renderApp(email);
+}
+function openRunPayrollModal() { const m = document.getElementById('runPayrollModal'); if (m) m.style.display = 'flex'; }
+function handleRunPayrollSubmit(e) {
+    e.preventDefault();
+    const month = document.getElementById('payrollRunMonth').value;
+    const year = document.getElementById('payrollRunYear').value;
+    const employees = window._currentEmployees || [];
+    const totalPayroll = employees.reduce((s, emp) => s + (Number(emp.monthly_salary) || 0), 0);
+    const hist = window._currentPayrollHistory || [];
+    hist.unshift({ month, year, employees: employees.length, amount: totalPayroll, status: 'Processed' });
+    window._currentPayrollHistory = hist;
+    if (window.addNotification) window.addNotification('Payroll Processed', `Payroll for ${month} ${year} processed.`, 'success', 'fa-file-invoice-dollar');
+    if (window.showToast) window.showToast('Success', `Payroll ${month} ${year} processed!`, 'success');
+    document.getElementById('runPayrollModal').style.display = 'none';
+    if (window.refreshCurrentSection) window.refreshCurrentSection();
+}
+function viewPayrollSummary(month, year) {
+    const employees = window._currentEmployees || [];
+    let modal = document.getElementById('payrollSummaryModal');
+    if (!modal) { modal = document.createElement('div'); modal.id = 'payrollSummaryModal'; modal.className = 'modal-backdrop'; document.body.appendChild(modal); }
+    const totalGross = employees.reduce((s, e) => s + (Number(e.monthly_salary) || 0), 0);
+    modal.innerHTML = `
+        <div style="background:var(--card-bg);border-radius:var(--radius);padding:1.8rem;max-width:960px;width:95%;max-height:90vh;overflow-y:auto;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2rem;border-bottom:1px solid var(--border);padding-bottom:0.8rem;">
+                <h3 style="margin:0;">Salary Register — ${month} ${year}</h3>
+                <button class="modal-close-btn" onclick="document.getElementById('payrollSummaryModal').style.display='none'">&times;</button>
+            </div>
+            <div class="custom-table-responsive">
+                <table class="styled-table">
+                    <thead><tr><th>Employee</th><th>Department</th><th>Gross</th><th>Deductions</th><th>Net Pay</th><th>Action</th></tr></thead>
+                    <tbody>
+                        ${employees.map(e => {
+                            const gross = Number(e.monthly_salary) || 75000;
+                            const pf = 1800, pt = 200;
+                            const net = gross - pf - pt;
+                            return `<tr>
+                                <td><strong>${e.name}</strong></td>
+                                <td><span class="badge" style="background:#e8f0fe;color:var(--primary);">${e.department || ''}</span></td>
+                                <td>₹${gross.toLocaleString('en-IN')}</td>
+                                <td style="color:var(--danger);">₹${(pf+pt).toLocaleString('en-IN')}</td>
+                                <td><strong style="color:var(--success);">₹${net.toLocaleString('en-IN')}</strong></td>
+                                <td><button class="btn-primary btn-sm" onclick="document.getElementById('payrollSummaryModal').style.display='none'; window.viewPayslipModal('PS-${year}-08-${e.id}')"><i class="fas fa-eye"></i></button></td>
+                            </tr>`;
+                        }).join('')}
+                    </tbody>
+                </table>
+            </div>
+            <div style="margin-top:1.2rem;text-align:right;">
+                <button class="btn-secondary-custom" onclick="document.getElementById('payrollSummaryModal').style.display='none'">Close</button>
+            </div>
+        </div>
+    `;
+    modal.style.display = 'flex';
+}
+function viewPayslipModal(payslipId) {
+    const container = document.getElementById('payslipModalContainer');
+    const docContainer = document.getElementById('printablePayslipDocument');
+    const downloadBtn = document.getElementById('modalDownloadPdfBtn');
+    if (container && docContainer) {
+        docContainer.innerHTML = buildPayslipHTML(payslipId);
+        container.style.display = 'flex';
+        if (downloadBtn) downloadBtn.onclick = () => window.downloadPayslipPDF(payslipId);
+    } else {
+        if (window.showToast) window.showToast('Info', `Payslip ${payslipId}`, 'info');
+    }
+}
+function closePayslipModal() { const c = document.getElementById('payslipModalContainer'); if (c) c.style.display = 'none'; }
+async function downloadPayslipPDF(payslipId) {
+    const employees = window._currentEmployees || [];
+    const emp = employees.find(e => String(e.id) === String(payslipId) || `PS-2026-08-${e.id}` === payslipId) || window.currentUser?.empData || { name: 'Employee' };
+    const month = payslipFilterMonth || 'August';
+    const year = payslipFilterYear || '2026';
+    const fileName = `Payslip_${(emp.name || 'Employee').replace(/\s+/g, '_')}_${month}_${year}.pdf`;
+    if (window.showToast) window.showToast('Info', `Generating PDF...`, 'info');
+    const tempDiv = document.createElement('div');
+    tempDiv.id = 'pdfExportRenderBox';
+    tempDiv.style.cssText = 'position:fixed;top:0;left:0;width:794px;background:#fff;z-index:999999;padding:12px;box-sizing:border-box;';
+    tempDiv.innerHTML = buildPayslipHTML(payslipId);
+    document.body.appendChild(tempDiv);
+    const opt = { margin: [6,6,6,6], filename: fileName, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true, logging: false }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
+    try {
+        if (typeof html2pdf !== 'undefined') {
+            await html2pdf().set(opt).from(tempDiv).save();
+            if (window.showToast) window.showToast('Success', `Downloaded: ${fileName}`, 'success');
+        } else {
+            viewPayslipModal(payslipId);
+            setTimeout(() => window.print(), 300);
+        }
+    } catch (e) {
+        console.error('PDF error:', e);
+        viewPayslipModal(payslipId);
+    } finally {
+        if (document.body.contains(tempDiv)) document.body.removeChild(tempDiv);
     }
 }
 function handlePayslipFilterChange() {
@@ -1844,7 +2374,6 @@ window.renderProfile = renderProfile;
 window.renderAttendance = renderAttendance;
 
 window.refreshMessagesStream = refreshMessagesStream;
-window.refreshLeavesFromBackend = refreshLeavesFromBackend;
 window.selectChatRecipient = selectChatRecipient;
 window.filterEmployeesList = filterEmployeesList;
 window.filterDeptThreads = filterDeptThreads;
@@ -1898,4 +2427,3 @@ window.refreshCurrentSection = refreshCurrentSection;
 
 console.log('✅ renderers.js loaded with FULL features');
 console.log('   Exposed renderers:', Object.keys(window).filter(k => k.startsWith('render')).length);
-console.log('   refreshLeavesFromBackend:', typeof window.refreshLeavesFromBackend);

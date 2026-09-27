@@ -413,10 +413,13 @@ async function renderApp(userEmail) {
         }).then(() => console.log('🔥 Backend pre-warmed')).catch(e => console.warn('Pre-warm notice:', e.message));
     }
 
+   
     console.log('🔄 Rendering app for:', userEmail);
     console.log('👥 Employees in state:', window._currentEmployees?.length || 0);
     console.log('📋 Leaves in state:', window._currentLeaves?.length || 0);
     console.log('💬 Messages in state:', window._currentMessages?.length || 0);
+    
+    
 
     const container = document.getElementById('contentSections');
     const hasCachedData = (window._currentEmployees && window._currentEmployees.length > 0);
