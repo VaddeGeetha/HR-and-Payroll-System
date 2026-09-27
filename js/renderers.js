@@ -250,47 +250,51 @@ function renderEmployeeDashboard(userEmail, employees, leaves, stats) {
                 ? window.getStoredWFHSession(userEmail)
                 : { active: false, startTime: null, durationSeconds: 0 };
             const isWfhActive = !!wfhSession.active;
-            const lastDur = wfhSession.formattedDuration || (typeof window.formatDurationHHMMSS === 'function' ? window.formatDurationHHMMSS(wfhSession.durationSeconds || 0) : '00:00:00');
+            const lastDate = wfhSession.lastWfhDate || '';
+            const lastDur = wfhSession.lastWfhDuration || wfhSession.formattedDuration || '00:00:00';
 
             return `
             <div class="stat-card wfh-tracker-card" style="margin-top:1.2rem;margin-bottom:1.5rem;padding:1.4rem;background:${isWfhActive ? 'linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%)' : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)'};border-left:5px solid ${isWfhActive ? '#22a65e' : 'var(--primary)'};box-shadow:0 4px 12px rgba(0,0,0,0.05);">
                 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1.2rem;">
                     <div style="display:flex;align-items:center;gap:1rem;">
                         <div style="background:${isWfhActive ? '#d4edda' : '#e8f0fe'};width:3.2rem;height:3.2rem;border-radius:50%;display:flex;align-items:center;justify-content:center;color:${isWfhActive ? '#155724' : 'var(--primary)'};font-size:1.6rem;flex-shrink:0;">
-                            <i class="fas fa-laptop-house"></i>
+                            <i class="fas ${isWfhActive ? 'fa-laptop-house' : 'fa-building'}"></i>
                         </div>
                         <div>
                             <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">
-                                <h3 style="margin:0;color:var(--text-primary);font-size:1.15rem;" id="wfhCurrentModeTitle">${isWfhActive ? 'WFH Active' : 'Work From Home (WFH)'}</h3>
+                                <h3 style="margin:0;color:var(--text-primary);font-size:1.15rem;" id="wfhCurrentModeTitle">${isWfhActive ? 'Work From Home (WFH) Active' : 'Office Mode Active'}</h3>
                                 <span class="badge" style="background:${isWfhActive ? '#d4edda' : '#e8f0fe'};color:${isWfhActive ? '#155724' : 'var(--primary)'};display:flex;align-items:center;gap:0.4rem;font-weight:700;">
-                                    ${isWfhActive ? '<span class="live-pulse-dot"></span> WFH Active' : '<i class="fas fa-circle" style="font-size:0.5rem;"></i> Inactive'}
+                                    ${isWfhActive ? '<span class="live-pulse-dot"></span> WFH Shift Live' : '<i class="fas fa-building" style="font-size:0.75rem;"></i> Office Mode'}
                                 </span>
                             </div>
                             <div id="wfhSubtext" style="color:var(--text-secondary);font-size:0.85rem;margin-top:0.25rem;">
                                 ${isWfhActive 
-                                    ? `<i class="fas fa-clock" style="color:var(--primary);"></i> WFH session active · Timer increases every second`
-                                    : (wfhSession.durationSeconds > 0 
-                                        ? `Last WFH Session: <strong>${lastDur}</strong> · Click "Start WFH" to begin shift`
-                                        : `Click "Start WFH" to begin your remote working shift`)}
+                                    ? `<i class="fas fa-clock" style="color:var(--primary);"></i> WFH session active · Timer recording remote shift`
+                                    : (lastDate && lastDur !== '00:00:00'
+                                        ? `Last WFH Recorded: <strong>${lastDate} (${lastDur})</strong> · Working from Office`
+                                        : `Working from Office · Click "Start WFH" to begin remote shift`)}
                             </div>
                         </div>
                     </div>
                     <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;">
                         <div>
                             <div style="font-size:0.75rem;color:var(--text-secondary);text-transform:uppercase;font-weight:700;">Shift Timer (HH:MM:SS)</div>
-                            <div id="liveWorkingTimerDisplay" style="font-size:1.8rem;font-weight:800;color:${isWfhActive ? '#0b2b4a' : '#64748b'};font-family:monospace;">${isWfhActive ? '00:00:00' : (wfhSession.durationSeconds > 0 ? lastDur : '00:00:00')}</div>
+                            <div id="liveWorkingTimerDisplay" style="font-size:1.8rem;font-weight:800;color:${isWfhActive ? '#0b2b4a' : '#64748b'};font-family:monospace;">00:00:00</div>
                         </div>
-                        <div style="display:flex;gap:0.6rem;align-items:center;">
+                        <div style="display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap;">
                             ${isWfhActive ? `
-                                <button class="btn-danger btn-sm" onclick="window.stopWFH()" id="btnStopWFH" style="padding:0.5rem 1.1rem;font-weight:700;">
-                                    <i class="fas fa-stop"></i> End WFH
+                                <button class="btn-secondary-custom btn-sm" onclick="window.switchToOfficeMode()" id="btnSwitchOffice" style="padding:0.5rem 1rem;font-weight:600;">
+                                    <i class="fas fa-building"></i> Switch to Office
                                 </button>
                                 <button class="btn-warning btn-sm" onclick="window.toggleWorkBreak()" id="btnBreakWFH" style="background:#fff3cd;color:#856404;border:1px solid #ffeeba;font-weight:600;padding:0.5rem 1rem;">
                                     <i class="fas ${wfhSession.isBreak ? 'fa-play' : 'fa-coffee'}"></i> ${wfhSession.isBreak ? 'Resume' : 'Break'}
                                 </button>
+                                <button class="btn-danger btn-sm" onclick="window.stopWFH()" id="btnStopWFH" style="padding:0.5rem 1rem;font-weight:700;">
+                                    <i class="fas fa-stop"></i> End Shift
+                                </button>
                             ` : `
                                 <button class="btn-success btn-sm" onclick="window.startWFH()" id="btnStartWFH" style="padding:0.55rem 1.4rem;font-weight:700;font-size:0.95rem;">
-                                    <i class="fas fa-play"></i> Start WFH
+                                    <i class="fas fa-laptop-house"></i> Start WFH
                                 </button>
                             `}
                         </div>
@@ -299,36 +303,6 @@ function renderEmployeeDashboard(userEmail, employees, leaves, stats) {
             </div>
             `;
         })()}
-        <div class="stat-card wfh-tracker-card" style="margin-top:1.2rem;margin-bottom:1.5rem;padding:1.4rem;background:linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);border-left:5px solid #22a65e;">
-            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;">
-                <div style="display:flex;align-items:center;gap:1rem;">
-                    <div style="background:#d4edda;width:3.2rem;height:3.2rem;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#155724;font-size:1.6rem;flex-shrink:0;">
-                        <i class="fas fa-laptop-house"></i>
-                    </div>
-                    <div>
-                        <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">
-                            <h3 style="margin:0;color:var(--text-primary);font-size:1.15rem;" id="wfhCurrentModeTitle">Work From Home (WFH) Active</h3>
-                            <span class="badge" style="background:#d4edda;color:#155724;display:flex;align-items:center;gap:0.4rem;font-weight:700;">
-                                <span class="live-pulse-dot"></span> Live Shift
-                            </span>
-                        </div>
-                        <div style="color:var(--text-secondary);font-size:0.85rem;margin-top:0.25rem;">
-                            <i class="fas fa-clock" style="color:var(--primary);"></i> Working hours started upon login
-                        </div>
-                    </div>
-                </div>
-                <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;">
-                    <div>
-                        <div style="font-size:0.75rem;color:var(--text-secondary);text-transform:uppercase;font-weight:700;">Today's Working Hours</div>
-                        <div id="liveWorkingTimerDisplay" style="font-size:1.8rem;font-weight:800;color:#0b2b4a;font-family:monospace;">00h : 00m : 00s</div>
-                    </div>
-                    <div style="display:flex;gap:0.5rem;">
-                        <button class="btn-secondary-custom btn-sm" onclick="window.toggleWorkMode()"><i class="fas fa-building"></i> Switch to Office</button>
-                        <button class="btn-warning btn-sm" onclick="window.toggleWorkBreak()" style="background:#fff3cd;color:#856404;border:1px solid #ffeeba;font-weight:600;"><i class="fas fa-coffee"></i> Take Break</button>
-                    </div>
-                </div>
-            </div>
-        </div>
         <div class="stats-grid">
             <div class="stat-card"><div class="stat-label"><i class="fas fa-calendar-check" style="color:var(--primary);"></i> Leave Balance</div><div class="stat-value" style="color:var(--primary);">${totalRemainingLeaves} <span style="font-size:0.9rem;color:var(--text-secondary);">Days</span></div><div style="font-size:0.8rem;color:var(--text-secondary);margin-top:0.4rem;">CL: <strong>${leaveBalances.casual?.remaining || 3}d</strong> | SL: <strong>${leaveBalances.sick?.remaining || 3}d</strong> | EL: <strong>${leaveBalances.earned?.remaining || 10}d</strong></div></div>
             <div class="stat-card"><div class="stat-label"><i class="fas fa-hourglass-half" style="color:#f0ad4e;"></i> Pending</div><div class="stat-value" style="color:#f0ad4e;">${pendingReqs.length}</div><div style="font-size:0.8rem;color:var(--text-secondary);margin-top:0.4rem;">${pendingReqs.length > 0 ? pendingReqs[0].type : 'None'}</div></div>

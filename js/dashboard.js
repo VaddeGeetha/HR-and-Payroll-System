@@ -220,6 +220,11 @@ function getWFHSessionKey(userEmail) {
     return 'hr_wfh_session_' + clean;
 }
 
+function getWFHHistoryKey(userEmail) {
+    const clean = (userEmail || window.currentUser?.email || window.userEmail || 'employee').trim().toLowerCase();
+    return 'hr_wfh_history_' + clean;
+}
+
 function getStoredWFHSession(userEmail) {
     const key = getWFHSessionKey(userEmail);
     try {
@@ -231,14 +236,29 @@ function getStoredWFHSession(userEmail) {
     } catch (e) {}
     return {
         active: false,
+        mode: 'office',
         startTime: null,
         endTime: null,
         durationSeconds: 0,
         formattedDuration: '00:00:00',
         isBreak: false,
         breakStartTime: null,
-        totalBreakMs: 0
+        totalBreakMs: 0,
+        lastWfhDate: null,
+        lastWfhDuration: null
     };
+}
+
+function getStoredWFHHistory(userEmail) {
+    const key = getWFHHistoryKey(userEmail);
+    try {
+        const stored = localStorage.getItem(key);
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed)) return parsed;
+        }
+    } catch (e) {}
+    return [];
 }
 
 function formatDurationHHMMSS(totalSeconds) {
@@ -261,11 +281,7 @@ function initWorkingHoursTracker() {
 
         const session = getStoredWFHSession(userEmail);
         if (!session.active || !session.startTime) {
-            if (session.durationSeconds > 0) {
-                timerEl.textContent = session.formattedDuration || formatDurationHHMMSS(session.durationSeconds);
-            } else {
-                timerEl.textContent = '00:00:00';
-            }
+            timerEl.textContent = '00:00:00';
             return;
         }
 
@@ -288,26 +304,111 @@ async function startWFH() {
     if (!userEmail) return;
 
     const startTime = Date.now();
+    const existing = getStoredWFHSession(userEmail);
     const session = {
         active: true,
+        mode: 'wfh',
         startTime: startTime,
         startDate: new Date(startTime).toISOString(),
         endTime: null,
         durationSeconds: 0,
-        formattedDuration: '00:00:01',
+        formattedDuration: '00:00:00',
         isBreak: false,
         breakStartTime: null,
-        totalBreakMs: 0
+        totalBreakMs: 0,
+        lastWfhDate: existing.lastWfhDate || null,
+        lastWfhDuration: existing.lastWfhDuration || null
     };
 
     const key = getWFHSessionKey(userEmail);
     localStorage.setItem(key, JSON.stringify(session));
 
-    showToast('Success', '✅ WFH started successfully.', 'success');
+    showToast('Success', '✅ WFH started. Timer is now running.', 'success');
 
-    // Sync with backend API in background
+    // Optional background sync with backend API (non-blocking)
     if (window.api?.startWFH) {
         window.api.startWFH(userEmail, startTime).catch(e => console.warn('WFH start API sync:', e.message));
+    }
+
+    if (window.renderApp) {
+        await window.renderApp(userEmail);
+    }
+}
+
+async function switchToOfficeMode() {
+    const userEmail = (window.currentUser?.email || window.userEmail || '').trim().toLowerCase();
+    if (!userEmail) return;
+
+    const session = getStoredWFHSession(userEmail);
+    const now = Date.now();
+    const todayDateStr = new Date(now).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    const isoDateStr = new Date(now).toISOString().split('T')[0];
+
+    let durationSeconds = 0;
+    let formattedDuration = '00:00:00';
+
+    if (session.active && session.startTime) {
+        let elapsedMs = now - session.startTime - (session.totalBreakMs || 0);
+        if (session.isBreak && session.breakStartTime) {
+            elapsedMs -= (now - session.breakStartTime);
+        }
+        durationSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
+        formattedDuration = formatDurationHHMMSS(durationSeconds);
+    } else if (session.durationSeconds > 0) {
+        durationSeconds = session.durationSeconds;
+        formattedDuration = session.formattedDuration || formatDurationHHMMSS(durationSeconds);
+    }
+
+    // Record WFH session with date and elapsed duration
+    if (durationSeconds > 0) {
+        const historyList = getStoredWFHHistory(userEmail);
+        const record = {
+            id: Date.now(),
+            email: userEmail,
+            date: todayDateStr,
+            isoDate: isoDateStr,
+            startTime: session.startTime || now,
+            endTime: now,
+            durationSeconds: durationSeconds,
+            formattedDuration: formattedDuration,
+            mode: 'Office',
+            recordedAt: new Date(now).toISOString()
+        };
+        historyList.unshift(record);
+        try {
+            localStorage.setItem(getWFHHistoryKey(userEmail), JSON.stringify(historyList));
+        } catch (e) {}
+    }
+
+    // Reset timer and set mode to office
+    if (workingHoursInterval) clearInterval(workingHoursInterval);
+
+    const officeSession = {
+        active: false,
+        mode: 'office',
+        startTime: null,
+        endTime: now,
+        durationSeconds: 0, // Reset timer to zero
+        formattedDuration: '00:00:00',
+        isBreak: false,
+        breakStartTime: null,
+        totalBreakMs: 0,
+        lastWfhDate: todayDateStr,
+        lastWfhDuration: durationSeconds > 0 ? formattedDuration : (session.lastWfhDuration || '00:00:00')
+    };
+
+    const key = getWFHSessionKey(userEmail);
+    localStorage.setItem(key, JSON.stringify(officeSession));
+
+    // Optional background sync with API
+    if (session.active && window.api?.stopWFH) {
+        window.api.stopWFH(userEmail, session.startTime || now).catch(e => console.warn('WFH stop notice:', e.message));
+    }
+
+    if (durationSeconds > 0) {
+        showToast('Office Mode', `Switched to Office Mode. WFH recorded on ${todayDateStr} (${formattedDuration}). Timer reset to 00:00:00.`, 'success');
+    } else {
+        showToast('Office Mode', `Switched to Office Mode. Timer is 00:00:00.`, 'info');
     }
 
     if (window.renderApp) {
@@ -321,6 +422,9 @@ async function stopWFH() {
 
     const session = getStoredWFHSession(userEmail);
     const now = Date.now();
+    const todayDateStr = new Date(now).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    const isoDateStr = new Date(now).toISOString().split('T')[0];
+
     let elapsedMs = session.startTime ? (now - session.startTime - (session.totalBreakMs || 0)) : 0;
     if (session.isBreak && session.breakStartTime) {
         elapsedMs -= (now - session.breakStartTime);
@@ -329,26 +433,47 @@ async function stopWFH() {
     const durationSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
     const formattedDuration = formatDurationHHMMSS(durationSeconds);
 
+    if (durationSeconds > 0) {
+        const historyList = getStoredWFHHistory(userEmail);
+        historyList.unshift({
+            id: Date.now(),
+            email: userEmail,
+            date: todayDateStr,
+            isoDate: isoDateStr,
+            startTime: session.startTime || now,
+            endTime: now,
+            durationSeconds: durationSeconds,
+            formattedDuration: formattedDuration,
+            mode: 'WFH Ended',
+            recordedAt: new Date(now).toISOString()
+        });
+        try {
+            localStorage.setItem(getWFHHistoryKey(userEmail), JSON.stringify(historyList));
+        } catch (e) {}
+    }
+
+    if (workingHoursInterval) clearInterval(workingHoursInterval);
+
     const completedSession = {
         active: false,
-        startTime: session.startTime,
+        mode: 'office',
+        startTime: null,
         endTime: now,
-        durationSeconds: durationSeconds,
-        formattedDuration: formattedDuration,
+        durationSeconds: 0, // Reset timer to zero
+        formattedDuration: '00:00:00',
         completedAt: new Date(now).toISOString(),
         isBreak: false,
         breakStartTime: null,
-        totalBreakMs: session.totalBreakMs || 0
+        totalBreakMs: 0,
+        lastWfhDate: todayDateStr,
+        lastWfhDuration: formattedDuration
     };
 
     const key = getWFHSessionKey(userEmail);
     localStorage.setItem(key, JSON.stringify(completedSession));
 
-    if (workingHoursInterval) clearInterval(workingHoursInterval);
+    showToast('Success', `✅ WFH ended. Recorded for ${todayDateStr} (${formattedDuration}). Timer reset to 00:00:00.`, 'success');
 
-    showToast('Success', `✅ WFH ended successfully. Total duration: ${formattedDuration}`, 'success');
-
-    // Sync with backend API in background
     if (window.api?.stopWFH) {
         window.api.stopWFH(userEmail, session.startTime).catch(e => console.warn('WFH stop API sync:', e.message));
     }
@@ -388,14 +513,23 @@ function toggleWorkBreak() {
 }
 
 function toggleWorkMode() {
-    showToast('Info', 'Shift mode is managed via WFH Start/End controls.', 'info');
+    const userEmail = (window.currentUser?.email || window.userEmail || '').trim().toLowerCase();
+    const session = getStoredWFHSession(userEmail);
+    if (session.active) {
+        switchToOfficeMode();
+    } else {
+        startWFH();
+    }
 }
 
 window.getWFHSessionKey = getWFHSessionKey;
+window.getWFHHistoryKey = getWFHHistoryKey;
 window.getStoredWFHSession = getStoredWFHSession;
+window.getStoredWFHHistory = getStoredWFHHistory;
 window.formatDurationHHMMSS = formatDurationHHMMSS;
 window.initWorkingHoursTracker = initWorkingHoursTracker;
 window.startWFH = startWFH;
+window.switchToOfficeMode = switchToOfficeMode;
 window.stopWFH = stopWFH;
 window.toggleWorkBreak = toggleWorkBreak;
 window.toggleWorkMode = toggleWorkMode;
